@@ -4,6 +4,7 @@ import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import Modal from "../components/Modal";
 import CreateGift from "../components/CreateGift";
+import { useNavigate } from "react-router-dom";
 
 type Guest = {
   id: string;
@@ -29,6 +30,17 @@ const Admin: React.FC = () => {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [gifts, setGifts] = useState<Gift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPopup, setShowPopup] = useState(false);
+  const [showChosenGifts, setShowChosenGifts] = useState(
+    localStorage.getItem("showChosenGifts") === "true"
+  );
+  const navigate = useNavigate();
+
+  const handleToggleShowChosen = () => {
+    const newValue = !showChosenGifts;
+    setShowChosenGifts(newValue);
+    localStorage.setItem("showChosenGifts", newValue ? "true" : "false");
+  };
 
   // Buscar dados do Firestore
   useEffect(() => {
@@ -62,7 +74,10 @@ const Admin: React.FC = () => {
   // Estatísticas
   const totalGuests = guests.length;
   const confirmedGuests = guests.filter((g) => g.giftSelected).length;
-  const totalValue = gifts.reduce((acc, gift) => acc + (Number(gift.valor) || 0), 0);
+  const totalValue = gifts.reduce(
+    (acc, gift) => acc + (Number(gift.valor) || 0),
+    0
+  );
 
   // Logout
   const handleLogout = async () => {
@@ -78,6 +93,13 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleGiftCreated = () => {
+    setIsModalOpen(false); // Fecha o modal
+    setShowPopup(true);    // Mostra o popup
+    setTimeout(() => setShowPopup(false), 3000);
+    navigate("/admin");
+  };
+
   if (loading) return <p className="text-center mt-10">Carregando...</p>;
 
   return (
@@ -90,7 +112,9 @@ const Admin: React.FC = () => {
         Sair
       </button>
 
-      <h1 className="text-3xl font-bold text-center mb-8">Painel do Admin 🎂</h1>
+      <h1 className="text-3xl font-bold text-center mb-8">
+        Painel do Admin 🎂
+      </h1>
 
       {/* Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -110,16 +134,43 @@ const Admin: React.FC = () => {
 
       {/* Botão para abrir modal */}
       <button
-        onClick={() => setIsModalOpen(true)}
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
+        onClick={() => setIsModalOpen(true)}
       >
-        ➕ Adicionar Presente
+        Adicionar Presente
       </button>
-
+      <label className="flex items-center gap-2 mt-4">
+        <input
+          type="checkbox"
+          checked={showChosenGifts}
+          onChange={handleToggleShowChosen}
+        />
+        Mostrar presentes já escolhidos na lista dos convidados
+      </label>
       {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <CreateGift />
-      </Modal>
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
+            <button
+              className="absolute top-2 right-3 text-pink-500 text-2xl font-bold"
+              onClick={() => setIsModalOpen(false)}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+            <CreateGift onGiftCreated={handleGiftCreated} />
+          </div>
+        </div>
+      )}
+
+      {/* Popup de sucesso */}
+      {showPopup && (
+        <div className="fixed bottom-5 right-5 bg-white p-4 rounded-lg shadow-md z-50">
+          <p className="text-green-600 font-semibold">
+            Presente criado com sucesso!
+          </p>
+        </div>
+      )}
 
       {/* Tabela de convidados */}
       <div className="mt-10">
@@ -141,7 +192,8 @@ const Admin: React.FC = () => {
                   <td className="px-4 py-2">{guest.name}</td>
                   <td className="px-4 py-2">{guest.email}</td>
                   <td className="px-4 py-2">
-                    {typeof guest.giftId === "string" || typeof guest.giftId === "number"
+                    {typeof guest.giftId === "string" ||
+                    typeof guest.giftId === "number"
                       ? guest.giftId
                       : "-"}
                   </td>
@@ -179,9 +231,11 @@ const Admin: React.FC = () => {
                 <tr key={gift.id} className="text-center border-b">
                   <td className="px-4 py-2">{gift.title}</td>
                   <td className="px-4 py-2">
-                    {gift.selected ? "✔️" : "❌"}
+                    {gift.selected ? gift.selectedBy : "❌"}
                   </td>
-                  <td className="px-4 py-2">{gift.selectedEmail ? gift.selectedEmail : "-"}</td>
+                  <td className="px-4 py-2">
+                    {gift.selectedEmail ? gift.selectedEmail : "-"}
+                  </td>
                   <td className="px-4 py-2">R$ {gift.valor}</td>
                   <td className="px-4 py-2 flex justify-center gap-2">
                     <button className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">

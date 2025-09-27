@@ -2,13 +2,24 @@ import React, { useEffect, useState } from "react";
 import GiftCard from "../components/GiftCard";
 import emailjs from "@emailjs/browser";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 
+// Defina o tipo Gift
+type Gift = {
+  id: string;
+  title: string;
+  description: string;
+  selected: boolean;
+  selectedBy?: string;
+  selectedEmail?: string;
+};
+
 const Guest: React.FC = () => {
-  const [gifts, setGifts] = useState<any[]>([]);
+  const [gifts, setGifts] = useState<Gift[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [giftId, setGiftId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const giftsCollection = collection(db, "gifts");
@@ -19,23 +30,65 @@ const Guest: React.FC = () => {
     setName(storedName);
     setEmail(storedEmail);
 
-    fetchGifts();
+    // Busca o guestId e verifica se já escolheu presente
+    const guestId = localStorage.getItem("guestId");
+    if (guestId) {
+      import("firebase/firestore").then(({ doc, getDoc }) => {
+        const guestRef = doc(db, "guests", guestId);
+        getDoc(guestRef).then((snap) => {
+          const data = snap.data();
+          if (data && data.giftId) {
+            setGiftId(data.giftId);
+          }
+        });
+      });
+    }
+
+    // Listener em tempo real para presentes
+    const unsubscribe = onSnapshot(giftsCollection, (snapshot) => {
+      const giftsList: Gift[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        title: doc.data().title,
+        description: doc.data().description,
+        selected: doc.data().selected,
+        selectedBy: doc.data().selectedBy,
+        selectedEmail: doc.data().selectedEmail,
+      }));
+      setGifts(giftsList);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchGifts = async () => {
-    const snapshot = await getDocs(giftsCollection);
-    const giftsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setGifts(giftsList);
-  };
+  useEffect(() => {
+    if (giftId) {
+      navigate("/dashboard");
+    }
+  }, [giftId, navigate]);
 
-  const handleSelect = async (gift: any) => {
+  const handleSelect = async (gift: Gift) => {
     if (!gift.id) return;
 
+    const guestId = localStorage.getItem("guestId");
+    if (!guestId) {
+      alert("Erro: guestId não encontrado.");
+      return;
+    }
+
+    // Atualiza o presente com guestId, selectedBy e selectedEmail
     const giftRef = doc(db, "gifts", gift.id);
     await updateDoc(giftRef, {
       selected: true,
       selectedBy: name,
-      selectedEmail: email
+      selectedEmail: email,
+      guestId: guestId,
+    });
+
+    // Atualiza o convidado com o giftId escolhido
+    const guestRef = doc(db, "guests", guestId);
+    await updateDoc(guestRef, {
+      giftId: gift.id,
+      giftSelected: true,
     });
 
     const templateParams = {
@@ -53,10 +106,11 @@ const Guest: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("guestName");
-    localStorage.removeItem("guestEmail");
-    navigate("/");
+    localStorage.clear();
+    window.location.href = "/login";
   };
+
+  const showChosenGifts = localStorage.getItem("showChosenGifts") === "true";
 
   return (
     <div className="p-6 relative">
@@ -74,15 +128,17 @@ const Guest: React.FC = () => {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
-        {gifts.map(gift => (
-          <GiftCard
-            key={gift.id}
-            title={gift.title}
-            description={gift.description}
-            onSelect={() => handleSelect(gift)}
-            disabled={gift.selected}
-          />
-        ))}
+        {gifts
+          .filter(gift => showChosenGifts || !gift.selected)
+          .map(gift => (
+            <GiftCard
+              key={gift.id}
+              title={gift.title}
+              description={gift.description}
+              onSelect={() => handleSelect(gift)}
+              disabled={gift.selected}
+            />
+          ))}
       </div>
     </div>
   );

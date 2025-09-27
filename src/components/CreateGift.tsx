@@ -14,7 +14,11 @@ const schemaGift = z.object({
 
 type FormGift = z.infer<typeof schemaGift>;
 
-export default function CreateGift() {
+type CreateGiftProps = {
+  onGiftCreated?: () => void;
+};
+
+const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
   const { register, handleSubmit, reset, formState } = useForm<FormGift>({
     resolver: zodResolver(schemaGift),
   });
@@ -32,7 +36,7 @@ export default function CreateGift() {
       await addDoc(giftsRef, {
         title: data.title,
         url: data.url,
-        valor:(data.valor), // <-- converte para número
+        valor: data.valor,
         description: data.description || "",
         selected: false,
         guestId: null,
@@ -40,8 +44,8 @@ export default function CreateGift() {
         selectedEmail: null,
         createdAt: serverTimestamp(),
       });
-      togglePopup();
       reset();
+      if (onGiftCreated) onGiftCreated(); // Chama aqui, SEM togglePopup
     } catch (error: any) {
       console.error("Erro ao criar presente:", error.message);
     }
@@ -131,19 +135,13 @@ export default function CreateGift() {
 
         <button
           type="submit"
-          className="w-full bg-pink-600 text-white py-2 px-4 rounded-lg hover:bg-pink-700 transition"
+          className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition mt-4 w-full"
         >
-          Criar Presente
+          Criar presente
         </button>
       </form>
-
-      {showPopup && (
-        <div className="fixed bottom-5 right-5 bg-white p-4 rounded-lg shadow-md">
-          <p className="text-green-600 font-semibold">
-            Presente criado com sucesso!
-          </p>
-        </div>
-      )}
     </div>
   );
-}
+};
+
+export default CreateGift;
