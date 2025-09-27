@@ -1,9 +1,9 @@
+import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { useState } from "react";
 
 // Tipo do formulário
 type FormGuest = {
@@ -19,7 +19,11 @@ const schemaGuest = z.object({
   password: z.string().min(4, "Mínimo 4 caracteres"),
 });
 
-export default function CreateGuest() {
+type RegisterProps = {
+  onRegisterSuccess?: () => void;
+};
+
+export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
   const { register, handleSubmit, reset, formState } = useForm<FormGuest>({
     resolver: zodResolver(schemaGuest),
   });
@@ -47,6 +51,9 @@ export default function CreateGuest() {
 
       togglePopup();
       reset();
+      if (onRegisterSuccess) {
+        onRegisterSuccess();
+      }
     } catch (error: any) {
       console.error("Erro ao registrar usuário: ", error.message);
     }
