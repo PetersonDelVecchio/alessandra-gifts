@@ -3,7 +3,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { useState } from "react";
 
 const schemaGift = z.object({
   title: z.string().min(3, "Título muito curto"),
@@ -23,13 +22,6 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
     resolver: zodResolver(schemaGift),
   });
 
-  const [showPopup, setShowPopup] = useState(false);
-
-  const togglePopup = () => {
-    setShowPopup(true);
-    setTimeout(() => setShowPopup(false), 3000);
-  };
-
   const createGift = async (data: FormGift) => {
     try {
       const giftsRef = collection(db, "gifts");
@@ -46,8 +38,12 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
       });
       reset();
       if (onGiftCreated) onGiftCreated(); // Chama aqui, SEM togglePopup
-    } catch (error: any) {
-      console.error("Erro ao criar presente:", error.message);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Erro ao criar presente:", error.message);
+      } else {
+        console.error("Erro ao criar presente:", error);
+      }
     }
   };
 
@@ -123,7 +119,10 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
 
         {/* Descrição */}
         <div className="mb-4">
-          <label htmlFor="description" className="block font-medium text-gray-700">
+          <label
+            htmlFor="description"
+            className="block font-medium text-gray-700"
+          >
             Descrição (opcional)
           </label>
           <textarea

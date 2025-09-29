@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { signOut } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { auth, db } from "../firebase/config";
-import Modal from "../components/Modal";
+import {
+  collection,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  updateDoc,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../firebase/config";
 import CreateGift from "../components/CreateGift";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../hooks/useTheme";
+import { useToast } from "../context/ToastContext";
 
 type Guest = {
   id: string;
@@ -12,17 +19,17 @@ type Guest = {
   email: string;
   giftSelected: boolean;
   giftId?: string | null;
-  createdAt?: any;
+  createdAt?: Timestamp | null;
 };
 
 type Gift = {
   id: string;
   title: string;
+  url: string;
   description: string;
-  valor: number;
+  valor?: string | number;
   selected: boolean;
-  selectedBy?: string;
-  selectedEmail?: string;
+  guestId?: string | null;
 };
 
 const Admin: React.FC = () => {
@@ -31,44 +38,46 @@ const Admin: React.FC = () => {
   const [gifts, setGifts] = useState<Gift[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPopup, setShowPopup] = useState(false);
-  const [showChosenGifts, setShowChosenGifts] = useState(
-    localStorage.getItem("showChosenGifts") === "true"
-  );
   const navigate = useNavigate();
+  const { theme } = useTheme();
 
-  const handleToggleShowChosen = () => {
-    const newValue = !showChosenGifts;
-    setShowChosenGifts(newValue);
-    localStorage.setItem("showChosenGifts", newValue ? "true" : "false");
+  const handleToggleShowChosen = async () => {
+    if (!theme) return;
+    const themeRef = doc(db, "theme", "59zMCCzevS9uOZumvxZ4");
+    await updateDoc(themeRef, { listSelected: !theme.listSelected });
   };
+  const { showToast } = useToast();
 
   // Buscar dados do Firestore
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Guests
-        const guestsSnapshot = await getDocs(collection(db, "guests"));
+    // Guests listener
+    const guestsUnsub = onSnapshot(
+      collection(db, "guests"),
+      (guestsSnapshot) => {
         const guestsData: Guest[] = guestsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Guest[];
         setGuests(guestsData);
-
-        // Gifts
-        const giftsSnapshot = await getDocs(collection(db, "gifts"));
-        const giftsData: Gift[] = giftsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Gift[];
-        setGifts(giftsData);
-
         setLoading(false);
-      } catch (error) {
-        console.error("Erro ao buscar dados:", error);
       }
-    };
+    );
 
-    fetchData();
+    // Gifts listener
+    const giftsUnsub = onSnapshot(collection(db, "gifts"), (giftsSnapshot) => {
+      const giftsData: Gift[] = giftsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Gift[];
+      setGifts(giftsData);
+      setLoading(false);
+    });
+
+    // Cleanup
+    return () => {
+      guestsUnsub();
+      giftsUnsub();
+    };
   }, []);
 
   // Estatísticas
@@ -80,9 +89,9 @@ const Admin: React.FC = () => {
   );
 
   // Logout
-  const handleLogout = async () => {
-    await signOut(auth);
-    window.location.href = "/"; // redirecionar para login
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/"; // ou "/login"
   };
 
   // Deletar presente
@@ -95,10 +104,20 @@ const Admin: React.FC = () => {
 
   const handleGiftCreated = () => {
     setIsModalOpen(false); // Fecha o modal
-    setShowPopup(true);    // Mostra o popup
+    setShowPopup(true); // Mostra o popup
     setTimeout(() => setShowPopup(false), 3000);
     navigate("/admin");
+
+    showToast("Presente criado!");
   };
+
+  const guestMap = React.useMemo(() => {
+    const map: Record<string, Guest> = {};
+    guests.forEach((g) => {
+      map[g.id] = g;
+    });
+    return map;
+  }, [guests]);
 
   if (loading) return <p className="text-center mt-10">Carregando...</p>;
 
@@ -110,6 +129,12 @@ const Admin: React.FC = () => {
         className="absolute top-6 right-6 bg-white border-2 border-pink-500 text-pink-500 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-pink-50 transition-colors duration-300"
       >
         Sair
+      </button>
+      <button
+        className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
+        onClick={() => navigate("/theme")}
+      >
+        Tema
       </button>
 
       <h1 className="text-3xl font-bold text-center mb-8">
@@ -139,14 +164,32 @@ const Admin: React.FC = () => {
       >
         Adicionar Presente
       </button>
-      <label className="flex items-center gap-2 mt-4">
-        <input
-          type="checkbox"
-          checked={showChosenGifts}
-          onChange={handleToggleShowChosen}
-        />
-        Mostrar presentes já escolhidos na lista dos convidados
-      </label>
+      <div className="flex items-center gap-2 mt-4">
+        <div className="relative inline-block w-11 h-5">
+          <input
+            id="switch-component-pink"
+            type="checkbox"
+            checked={!!theme?.listSelected}
+            onChange={handleToggleShowChosen}
+            className="peer appearance-none w-11 h-5 bg-slate-100 rounded-full checked:bg-pink-600 cursor-pointer transition-colors duration-300"
+            style={{
+              backgroundColor: theme?.listSelected
+                ? theme?.navBarColor
+                : undefined,
+            }}
+          />
+          <label
+            htmlFor="switch-component-pink"
+            className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-pink-600 cursor-pointer "
+            style={{
+              borderColor: theme?.listSelected ? theme?.navBarColor : undefined,
+            }}
+          ></label>
+        </div>
+        <span className="text-sm font-medium text-gray-900">
+          Mostrar presentes já escolhidos na lista dos convidados
+        </span>
+      </div>
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
@@ -177,7 +220,12 @@ const Admin: React.FC = () => {
         <h2 className="text-xl font-semibold mb-4">Convidados</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-300 rounded-xl">
-            <thead className="bg-pink-500 text-white">
+            <thead
+              style={{
+                backgroundColor: theme?.navBarColor,
+                color: theme?.navBarText,
+              }}
+            >
               <tr>
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2">Email</th>
@@ -187,26 +235,45 @@ const Admin: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {guests.map((guest) => (
-                <tr key={guest.id} className="text-center border-b">
-                  <td className="px-4 py-2">{guest.name}</td>
-                  <td className="px-4 py-2">{guest.email}</td>
-                  <td className="px-4 py-2">
-                    {typeof guest.giftId === "string" ||
-                    typeof guest.giftId === "number"
-                      ? guest.giftId
-                      : "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {guest.createdAt?.toDate
-                      ? guest.createdAt.toDate().toLocaleDateString("pt-BR")
-                      : "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {guest.giftSelected ? "✔️" : "❌"}
-                  </td>
-                </tr>
-              ))}
+              {guests.map((guest) => {
+                let giftTitle = "-";
+                let giftUrl = "";
+                if (guest.giftId) {
+                  const gift = gifts.find((g) => g.id === guest.giftId);
+                  if (gift) {
+                    giftTitle = gift.title;
+                    giftUrl = typeof gift.url === "string" ? gift.url : "";
+                  }
+                }
+                return (
+                  <tr key={guest.id} className="text-center border-b">
+                    <td className="px-4 py-2">{guest.name}</td>
+                    <td className="px-4 py-2">{guest.email}</td>
+                    <td className="px-4 py-2">
+                      {giftTitle !== "-" && giftUrl ? (
+                        <a
+                          href={giftUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-pink-600 underline hover:text-pink-800"
+                        >
+                          {giftTitle}
+                        </a>
+                      ) : (
+                        giftTitle
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {guest.createdAt?.toDate
+                        ? guest.createdAt.toDate().toLocaleDateString("pt-BR")
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-2">
+                      {guest.giftSelected ? "✔️" : "❌"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -217,7 +284,12 @@ const Admin: React.FC = () => {
         <h2 className="text-xl font-semibold mb-4">Presentes</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-300 rounded-xl">
-            <thead className="bg-pink-500 text-white">
+            <thead
+              style={{
+                backgroundColor: theme?.navBarColor,
+                color: theme?.navBarText,
+              }}
+            >
               <tr>
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2">Selecionado</th>
@@ -227,29 +299,36 @@ const Admin: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {gifts.map((gift) => (
-                <tr key={gift.id} className="text-center border-b">
-                  <td className="px-4 py-2">{gift.title}</td>
-                  <td className="px-4 py-2">
-                    {gift.selected ? gift.selectedBy : "❌"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {gift.selectedEmail ? gift.selectedEmail : "-"}
-                  </td>
-                  <td className="px-4 py-2">R$ {gift.valor}</td>
-                  <td className="px-4 py-2 flex justify-center gap-2">
-                    <button className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGift(gift.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                    >
-                      Deletar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {gifts.map((gift) => {
+                const guest = gift.guestId ? guestMap[gift.guestId] : null;
+                return (
+                  <tr key={gift.id} className="text-center border-b">
+                    <td className="px-4 py-2">{gift.title}</td>
+                    <td className="px-4 py-2">
+                      {gift.selected
+                        ? guest
+                          ? guest.name
+                          : "Selecionado"
+                        : "❌"}
+                    </td>
+                    <td className="px-4 py-2">
+                      {gift.selected ? (guest ? guest.email : "-") : "-"}
+                    </td>
+                    <td className="px-4 py-2">R$ {gift.valor}</td>
+                    <td className="px-4 py-2 flex justify-center gap-2">
+                      <button className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGift(gift.id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                      >
+                        Deletar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
