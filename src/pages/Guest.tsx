@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import GiftCard from "../components/GiftCard";
-import emailjs from "@emailjs/browser";
 import { useNavigate } from "react-router-dom";
 import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { useTheme } from "../hooks/useTheme";
+import { useToast } from "../context/ToastContext";
 
 // Defina o tipo Gift
 type Gift = {
@@ -13,6 +13,7 @@ type Gift = {
   selected: boolean;
   selectedBy?: string;
   selectedEmail?: string;
+  guestId?: string | null;
 };
 
 const Guest: React.FC = () => {
@@ -21,6 +22,8 @@ const Guest: React.FC = () => {
   const [email, setEmail] = useState("");
   const [giftId, setGiftId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { theme, loading: themeLoading } = useTheme();
+  const { showToast } = useToast();
 
   const giftsCollection = collection(db, "gifts");
 
@@ -46,19 +49,20 @@ const Guest: React.FC = () => {
 
     // Listener em tempo real para presentes
     const unsubscribe = onSnapshot(giftsCollection, (snapshot) => {
-      const giftsList: Gift[] = snapshot.docs.map(doc => ({
+      const giftsList: Gift[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         title: doc.data().title,
         description: doc.data().description,
         selected: doc.data().selected,
         selectedBy: doc.data().selectedBy,
         selectedEmail: doc.data().selectedEmail,
+        guestId: doc.data().guestId,
       }));
       setGifts(giftsList);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [giftsCollection]);
 
   useEffect(() => {
     if (giftId) {
@@ -75,12 +79,10 @@ const Guest: React.FC = () => {
       return;
     }
 
-    // Atualiza o presente com guestId, selectedBy e selectedEmail
+    // Atualiza o presente com guestId apenas
     const giftRef = doc(db, "gifts", gift.id);
     await updateDoc(giftRef, {
       selected: true,
-      selectedBy: name,
-      selectedEmail: email,
       guestId: guestId,
     });
 
@@ -91,18 +93,11 @@ const Guest: React.FC = () => {
       giftSelected: true,
     });
 
-    const templateParams = {
-      guest_name: name,
-      guest_email: email,
-      gift_title: gift.title,
-      gift_description: gift.description
-    };
+    showToast("Presente selecionado!");
 
-    emailjs.send("service_5xc6qm7", "template_08j75bw", templateParams, "_T2E1SvzXatO1LUoX")
-      .then(() => alert(`🎉 Presente reservado com sucesso! Confirmação enviada para ${email}`))
-      .catch(() => alert("🎉 Presente reservado, mas não foi possível enviar o e-mail."));
-
-    fetchGifts();
+    setTimeout(() => {
+      navigate("/dashboard");
+    }, 1200); // 1.2 segundos para o usuário ver o toast
   };
 
   const handleLogout = () => {
@@ -110,34 +105,83 @@ const Guest: React.FC = () => {
     window.location.href = "/login";
   };
 
-  const showChosenGifts = localStorage.getItem("showChosenGifts") === "true";
+  if (themeLoading) return <div>Carregando tema...</div>;
 
   return (
-    <div className="p-6 relative">
+    <div
+      className="p-6 relative"
+      style={{
+        background: theme?.bgColor,
+        color: theme?.bgTextColor,
+        minHeight: "100vh",
+      }}
+    >
+      {/* Botão Sair */}
       <button
         onClick={handleLogout}
-        className="absolute top-6 right-6 bg-white border-2 border-pink-500 text-pink-500 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-pink-50 transition-colors duration-300"
+        className="absolute top-6 right-6 font-semibold px-4 py-2 rounded-xl shadow-md transition-colors duration-300"
+        style={{
+          background: theme?.logoutButtonColor,
+          color: theme?.logoutButtonTextColor,
+          border: `2px solid ${theme?.logoutButtonColor || "#e91e63"}`,
+        }}
       >
         Sair
       </button>
 
-      <h1 className="header text-center">Lista de Presentes da Alessandra 🎂</h1>
+      {/* Navbar/Título */}
+      <div
+        className="rounded-lg px-4 py-3 mb-2 shadow text-center"
+        style={{
+          background: theme?.navBarColor,
+          color: theme?.navBarText,
+          boxShadow: theme?.navBarShadow
+            ? "0 3px 8px 0 rgba(0,0,0,0.35)"
+            : "none",
+          fontFamily: theme?.titleFontFamily,
+          fontSize: 22,
+        }}
+      >
+        {theme?.titleListGift || "Lista de Presentes"}
+      </div>
 
       <p className="mt-2 text-black text-center">
         Olá, {name}! ({email})
       </p>
 
+      {/* Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
         {gifts
-          .filter(gift => showChosenGifts || !gift.selected)
-          .map(gift => (
-            <GiftCard
+          .filter((gift) => (theme?.listSelected ? true : !gift.selected))
+          .map((gift) => (
+            <div
               key={gift.id}
-              title={gift.title}
-              description={gift.description}
-              onSelect={() => handleSelect(gift)}
-              disabled={gift.selected}
-            />
+              className="rounded-lg border p-4 flex flex-col gap-2"
+              style={{
+                opacity: gift.selected ? 0.6 : 1,
+                background: theme?.giftBgColor,
+                color: theme?.giftTextColor,
+                borderColor: theme?.giftBorderColor,
+                borderWidth: 1,
+                borderStyle: "solid",
+                fontFamily: theme?.giftFontFamily,
+              }}
+            >
+              <span className="font-semibold">{gift.title}</span>
+              <span className="text-sm">{gift.description}</span>
+              <button
+                disabled={gift.selected}
+                style={{
+                  background: gift.selected ? "#ccc" : theme?.giftButtonColor,
+                  color: gift.selected ? "#666" : theme?.giftTextButtonColor,
+                  fontFamily: theme?.giftFontFamily,
+                }}
+                className="px-4 py-2 rounded-lg shadow mt-2"
+                onClick={() => handleSelect(gift)}
+              >
+                {gift.selected ? "Indisponível" : "Escolher presente"}
+              </button>
+            </div>
           ))}
       </div>
     </div>
@@ -145,3 +189,5 @@ const Guest: React.FC = () => {
 };
 
 export default Guest;
+
+

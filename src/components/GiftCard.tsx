@@ -4,7 +4,7 @@ type GiftCardProps = {
   title: string;
   description: string;
   value?: string | number;
-  selected: boolean;
+  disabled: boolean;
   selectedBy?: string;
   onSelect: () => void;
 };
@@ -13,7 +13,7 @@ const GiftCard: React.FC<GiftCardProps> = ({
   title,
   description,
   value,
-  selected,
+  disabled,
   selectedBy,
   onSelect,
 }) => {
@@ -29,12 +29,12 @@ const GiftCard: React.FC<GiftCardProps> = ({
           )}
         </div>
         <p className="text-slate-600 leading-normal font-light mb-4">{description}</p>
-        {selected ? (
+        {disabled ? (
           <button
             className="rounded-md w-full mt-4 bg-gray-300 py-2 px-4 border border-transparent text-center text-sm text-gray-600 cursor-not-allowed"
             disabled
           >
-            {selectedBy ? `Escolhido por ${selectedBy}` : "Já escolhido"}
+            {selectedBy ? `Escolhido por ${selectedBy}` : "Indisponível"}
           </button>
         ) : (
           <button
