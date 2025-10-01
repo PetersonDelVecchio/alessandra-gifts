@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { useTheme } from "../hooks/useTheme";
 
 // Tipo do formulário
 type FormGuest = {
@@ -29,6 +30,7 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
   });
 
   const [showPopup, setShowPopup] = useState(false);
+  const { theme } = useTheme();
 
   const togglePopup = () => {
     setShowPopup(true);
@@ -54,8 +56,8 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
       if (onRegisterSuccess) {
         onRegisterSuccess();
       }
-    } catch (error: any) {
-      console.error("Erro ao registrar usuário: ", error.message);
+    } catch (error) {
+      console.error("Erro ao registrar usuário: ", error);
     }
   };
 
@@ -65,8 +67,11 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
         onSubmit={handleSubmit(createGuest)}
         className="max-w-md mx-auto p-6 bg-white shadow-lg rounded-xl"
       >
-        <h2 className="text-2xl font-semibold text-center text-pink-600 mb-6">
-          Criar Convidado
+        <h2 
+          className="text-2xl font-semibold text-center mb-6"
+          style={{ color: theme?.navBarColor || "#e91e63" }}
+        >
+          Registro de Convidado
         </h2>
 
         {/* Nome */}
@@ -78,9 +83,12 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
             type="text"
             id="name"
             {...register("name")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.name ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full border p-2 rounded-lg"
+            style={{ 
+              borderColor: formState.errors.name 
+                ? "#ef4444" 
+                : theme?.giftBorderColor || "#e5e7eb" 
+            }}
           />
           {formState.errors.name && (
             <p className="text-red-500 text-sm">
@@ -98,9 +106,12 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
             type="email"
             id="email"
             {...register("email")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.email ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full border p-2 rounded-lg"
+            style={{ 
+              borderColor: formState.errors.email 
+                ? "#ef4444" 
+                : theme?.giftBorderColor || "#e5e7eb" 
+            }}
           />
           {formState.errors.email && (
             <p className="text-red-500 text-sm">
@@ -118,9 +129,12 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
             type="password"
             id="password"
             {...register("password")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.password ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full border p-2 rounded-lg"
+            style={{ 
+              borderColor: formState.errors.password 
+                ? "#ef4444" 
+                : theme?.giftBorderColor || "#e5e7eb" 
+            }}
           />
           {formState.errors.password && (
             <p className="text-red-500 text-sm">
@@ -131,14 +145,18 @@ export default function CreateGuest({ onRegisterSuccess }: RegisterProps) {
 
         <button
           type="submit"
-          className="w-full bg-pink-600 text-white py-2 px-4 rounded-lg hover:bg-pink-700 transition"
+          className="w-full py-2 px-4 rounded-lg transition-colors duration-300 hover:brightness-90"
+          style={{ 
+            background: theme?.giftButtonColor || "#e91e63",
+            color: theme?.giftTextButtonColor || "#ffffff"
+          }}
         >
           Criar
         </button>
       </form>
 
       {showPopup && (
-        <div className="fixed bottom-5 right-5 bg-white p-4 rounded-lg shadow-md">
+        <div className="fixed bottom-5 right-5 bg-white p-4 rounded-lg shadow-md z-50">
           <p className="text-green-600 font-semibold">
             Usuário criado com sucesso!
           </p>

@@ -4,8 +4,8 @@ import { db } from "../firebase/config";
 
 export type Theme = {
   invitationCategory?: string;
-  invitationFontFamily?: string;      // Fonte do convite
-  invitationTextColor?: string;       // Cor do texto do convite
+  invitationFontFamily?: string; // Fonte do convite
+  invitationTextColor?: string; // Cor do texto do convite
   invitationBgColor?: string;
   bgColor: string;
   bgTextColor: string;
@@ -28,6 +28,16 @@ export type Theme = {
   giftTextButtonColor: string;
   giftFontFamily: string;
   logoutButtonFontFamily?: string;
+  inviteAddress: string;
+  inviteDate: string;
+  inviteHour: string;
+  inviteObs: string;
+  inviteTitle: string;
+  inviteCardBorderColor: string;
+  inviteCardBackgroundColor: string;
+  inviteCardTextColor: string;
+  inviteBackgroundColor: string;
+  inviteTextColor: string;
 };
 
 const THEME_DOC_ID = "59zMCCzevS9uOZumvxZ4";
@@ -55,6 +65,16 @@ export function useTheme() {
     giftTextButtonColor: "",
     giftFontFamily: "",
     logoutButtonFontFamily: "Montserrat",
+    inviteAddress: "Rua das Flores, 123 - Salão de Festas",
+    inviteDate: "12/10/2025",
+    inviteHour: "19:00",
+    inviteObs: "",
+    inviteTitle: "Você confirmou presença no aniversário da **Alessandra**!",
+    inviteCardBorderColor: "#e5e7eb",
+    inviteCardBackgroundColor: "#f9fafb",
+    inviteCardTextColor: "#374151",
+    inviteBackgroundColor: "#ffffff",
+    inviteTextColor: "#111827",
   });
   const [loading, setLoading] = useState(true);
 

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   collection,
   onSnapshot,
-  deleteDoc,
   doc,
   updateDoc,
   Timestamp,
@@ -38,15 +37,30 @@ const Admin: React.FC = () => {
   const [gifts, setGifts] = useState<Gift[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPopup, setShowPopup] = useState(false);
+
+  // Estados para os modais
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [unlinkModalOpen, setUnlinkModalOpen] = useState(false);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+
+  // Estados para edição
+  const [editForm, setEditForm] = useState({
+    title: "",
+    url: "",
+    description: "",
+    valor: "",
+  });
+
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { showToast } = useToast();
 
   const handleToggleShowChosen = async () => {
     if (!theme) return;
     const themeRef = doc(db, "theme", "59zMCCzevS9uOZumvxZ4");
     await updateDoc(themeRef, { listSelected: !theme.listSelected });
   };
-  const { showToast } = useToast();
 
   // Buscar dados do Firestore
   useEffect(() => {
@@ -80,6 +94,112 @@ const Admin: React.FC = () => {
     };
   }, []);
 
+  // Funções para abrir modais
+  const openEditModal = (gift: Gift) => {
+    setSelectedGift(gift);
+    setEditForm({
+      title: gift.title,
+      url: gift.url,
+      description: gift.description,
+      valor: gift.valor?.toString() || "",
+    });
+    setEditModalOpen(true);
+  };
+
+  const openDeleteModal = (gift: Gift) => {
+    setSelectedGift(gift);
+    setDeleteModalOpen(true);
+  };
+
+  const openUnlinkModal = (gift: Gift) => {
+    setSelectedGift(gift);
+    setUnlinkModalOpen(true);
+  };
+
+  // Função para editar presente
+  const handleEditGift = async () => {
+    if (!selectedGift) return;
+
+    try {
+      const giftRef = doc(db, "gifts", selectedGift.id);
+      await updateDoc(giftRef, {
+        title: editForm.title,
+        url: editForm.url,
+        description: editForm.description,
+        valor: editForm.valor,
+      });
+
+      setEditModalOpen(false);
+      setSelectedGift(null);
+      showToast("Presente atualizado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar presente:", error);
+      showToast("Erro ao atualizar presente");
+    }
+  };
+
+  // Função para deletar presente
+  const handleConfirmDelete = async () => {
+    if (!selectedGift) return;
+
+    try {
+      // Atualizar guest se necessário
+      if (selectedGift.guestId) {
+        const guestRef = doc(db, "guests", selectedGift.guestId);
+        await updateDoc(guestRef, {
+          giftId: "",
+          giftSelected: false,
+        });
+      }
+
+      // Atualizar presente
+      const giftRef = doc(db, "gifts", selectedGift.id);
+      await updateDoc(giftRef, {
+        guestId: "",
+        selected: false,
+        deletedAt: new Date(),
+        active: false,
+      });
+
+      setDeleteModalOpen(false);
+      setSelectedGift(null);
+      showToast("Presente removido com sucesso!");
+    } catch (error) {
+      console.error("Erro ao remover presente:", error);
+      showToast("Erro ao remover presente");
+    }
+  };
+
+  // Função para desvincular presente
+  const handleConfirmUnlink = async () => {
+    if (!selectedGift) return;
+
+    try {
+      // Atualizar guest
+      if (selectedGift.guestId) {
+        const guestRef = doc(db, "guests", selectedGift.guestId);
+        await updateDoc(guestRef, {
+          giftId: "",
+          giftSelected: false,
+        });
+      }
+
+      // Atualizar presente
+      const giftRef = doc(db, "gifts", selectedGift.id);
+      await updateDoc(giftRef, {
+        guestId: "",
+        selected: false,
+      });
+
+      setUnlinkModalOpen(false);
+      setSelectedGift(null);
+      showToast("Presente desvinculado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao desvincular presente:", error);
+      showToast("Erro ao desvincular presente");
+    }
+  };
+
   // Estatísticas
   const totalGuests = guests.length;
   const confirmedGuests = guests.filter((g) => g.giftSelected).length;
@@ -94,20 +214,11 @@ const Admin: React.FC = () => {
     window.location.href = "/"; // ou "/login"
   };
 
-  // Deletar presente
-  const handleDeleteGift = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este presente?")) {
-      await deleteDoc(doc(db, "gifts", id));
-      setGifts(gifts.filter((gift) => gift.id !== id));
-    }
-  };
-
   const handleGiftCreated = () => {
-    setIsModalOpen(false); // Fecha o modal
-    setShowPopup(true); // Mostra o popup
+    setIsModalOpen(false);
+    setShowPopup(true);
     setTimeout(() => setShowPopup(false), 3000);
     navigate("/admin");
-
     showToast("Presente criado!");
   };
 
@@ -132,6 +243,7 @@ const Admin: React.FC = () => {
       </button>
       <button
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
+        style={{ background: theme?.navBarColor, color: theme?.navBarText }}
         onClick={() => navigate("/theme")}
       >
         Tema
@@ -145,7 +257,12 @@ const Admin: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Pessoas Registradas</h3>
-          <p className="text-2xl font-bold text-pink-600">{totalGuests}</p>
+          <p
+            className="text-2xl font-bold text-pink-600"
+            style={{ color: theme?.navBarColor }}
+          >
+            {totalGuests}
+          </p>
         </div>
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Pessoas Confirmadas</h3>
@@ -160,10 +277,12 @@ const Admin: React.FC = () => {
       {/* Botão para abrir modal */}
       <button
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
+        style={{ background: theme?.navBarColor, color: theme?.navBarText }}
         onClick={() => setIsModalOpen(true)}
       >
         Adicionar Presente
       </button>
+
       <div className="flex items-center gap-2 mt-4">
         <div className="relative inline-block w-11 h-5">
           <input
@@ -190,9 +309,10 @@ const Admin: React.FC = () => {
           Mostrar presentes já escolhidos na lista dos convidados
         </span>
       </div>
-      {/* Modal */}
+
+      {/* Modal Criar Presente */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
             <button
               className="absolute top-2 right-3 text-pink-500 text-2xl font-bold"
@@ -202,6 +322,153 @@ const Admin: React.FC = () => {
               ×
             </button>
             <CreateGift onGiftCreated={handleGiftCreated} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Presente */}
+      {editModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
+            <button
+              className="absolute top-2 right-3 text-pink-500 text-2xl font-bold"
+              onClick={() => setEditModalOpen(false)}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-center">
+              Editar Presente
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Título</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, title: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">URL</label>
+                <input
+                  type="url"
+                  value={editForm.url}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, url: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Descrição
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, description: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  rows={3}
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Valor</label>
+                <input
+                  type="text"
+                  value={editForm.valor}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, valor: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="199.90"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleEditGift}
+                className="flex-1 bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition"
+              >
+                Salvar
+              </button>
+              <button
+                onClick={() => setEditModalOpen(false)}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Deletar Presente */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
+            <h2 className="text-xl font-bold mb-4 text-center text-red-600">
+              Confirmar Remoção
+            </h2>
+            <p className="text-center mb-6">
+              Certeza que deseja remover este presente?
+              <br />
+              <strong>Essa ação não poderá ser desfeita.</strong>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Desvincular Presente */}
+      {unlinkModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
+            <h2 className="text-xl font-bold mb-4 text-center text-orange-600">
+              Desvincular Presente
+            </h2>
+            <p className="text-center mb-6">
+              Remover o presente desta confirmação?
+              <br />
+              <strong>A pessoa terá de selecionar novamente.</strong>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleConfirmUnlink}
+                className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setUnlinkModalOpen(false)}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -255,7 +522,8 @@ const Admin: React.FC = () => {
                           href={giftUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-pink-600 underline hover:text-pink-800"
+                          className="text-pink-600 underline "
+                          style={{ color: theme?.navBarColor }}
                         >
                           {giftTitle}
                         </a>
@@ -315,16 +583,87 @@ const Admin: React.FC = () => {
                       {gift.selected ? (guest ? guest.email : "-") : "-"}
                     </td>
                     <td className="px-4 py-2">R$ {gift.valor}</td>
-                    <td className="px-4 py-2 flex justify-center gap-2">
-                      <button className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGift(gift.id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                      >
-                        Deletar
-                      </button>
+                    <td className="px-4 py-2">
+                      <div className="flex justify-center gap-2">
+                        {/* Botão Editar */}
+                        <button
+                          onClick={() => openEditModal(gift)}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="1.5"
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                            />
+                          </svg>
+                        </button>
+
+                        {/* Botão Deletar */}
+                        <button
+                          onClick={() => openDeleteModal(gift)}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                          title="Remover"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="1.5"
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                            />
+                          </svg>
+                        </button>
+
+                        {/* Botão Desvincular - sempre aparece, mas disabled quando não selecionado */}
+                        <button
+                          onClick={
+                            gift.selected
+                              ? () => openUnlinkModal(gift)
+                              : undefined
+                          }
+                          disabled={!gift.selected}
+                          className={`p-2 rounded-lg transition-colors ${
+                            gift.selected
+                              ? "text-orange-600 hover:bg-orange-100 cursor-pointer"
+                              : "text-gray-400 cursor-not-allowed"
+                          }`}
+                          title={
+                            gift.selected
+                              ? "Desvincular presente"
+                              : "Presente não vinculado"
+                          }
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="1.5"
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 10.374 21c-2.331 0-4.512-.645-6.374-1.766Z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -4,6 +4,7 @@ import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
+import Loading from "../components/Loading";
 
 // Defina o tipo Gift
 type Gift = {
@@ -14,6 +15,7 @@ type Gift = {
   selectedBy?: string;
   selectedEmail?: string;
   guestId?: string | null;
+  active?: boolean; // Adicionar campo active ao tipo Gift
 };
 
 const Guest: React.FC = () => {
@@ -57,6 +59,7 @@ const Guest: React.FC = () => {
         selectedBy: doc.data().selectedBy,
         selectedEmail: doc.data().selectedEmail,
         guestId: doc.data().guestId,
+        active: doc.data().active !== false, // Se não existe ou é true, considera ativo
       }));
       setGifts(giftsList);
     });
@@ -66,7 +69,7 @@ const Guest: React.FC = () => {
 
   useEffect(() => {
     if (giftId) {
-      navigate("/dashboard");
+      navigate("/invite");
     }
   }, [giftId, navigate]);
 
@@ -96,7 +99,7 @@ const Guest: React.FC = () => {
     showToast("Presente selecionado!");
 
     setTimeout(() => {
-      navigate("/dashboard");
+      navigate("/invite");
     }, 1200); // 1.2 segundos para o usuário ver o toast
   };
 
@@ -105,7 +108,7 @@ const Guest: React.FC = () => {
     window.location.href = "/login";
   };
 
-  if (themeLoading) return <div>Carregando tema...</div>;
+  if (themeLoading) return <Loading message="Carregando aplicação..." />;
 
   return (
     <div
@@ -150,13 +153,19 @@ const Guest: React.FC = () => {
       </p>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))" }}
+      >
         {gifts
-          .filter((gift) => (theme?.listSelected ? true : !gift.selected))
+          .filter((gift) => {
+            const isActive = gift.active !== false;
+            return isActive && (theme?.listSelected ? true : !gift.selected);
+          })
           .map((gift) => (
             <div
               key={gift.id}
-              className="rounded-lg border p-4 flex flex-col gap-2"
+              className="rounded-lg border p-4 flex flex-col gap-2 wrap-break-word"
               style={{
                 opacity: gift.selected ? 0.6 : 1,
                 background: theme?.giftBgColor,
@@ -168,7 +177,19 @@ const Guest: React.FC = () => {
               }}
             >
               <span className="font-semibold">{gift.title}</span>
-              <span className="text-sm">{gift.description}</span>
+              <div
+                className="text-sm flex-1 mb-4"
+                style={{
+                  minHeight: "10px",
+                  maxHeight: "35px",
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 5,
+                  WebkitBoxOrient: "vertical",
+                }}
+              >
+                {gift.description}
+              </div>
               <button
                 disabled={gift.selected}
                 style={{
@@ -189,5 +210,3 @@ const Guest: React.FC = () => {
 };
 
 export default Guest;
-
-

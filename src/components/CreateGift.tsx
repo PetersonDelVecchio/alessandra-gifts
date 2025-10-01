@@ -1,74 +1,71 @@
+import React from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { z } from "zod";
+import { addDoc, collection } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { useTheme } from "../hooks/useTheme";
 
 const schemaGift = z.object({
   title: z.string().min(3, "Título muito curto"),
   url: z.string().url("URL inválida"),
   valor: z.string().min(1, "Informe o valor"),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .max(100, "Descrição muito longa (máximo 100 caracteres)")
+    .optional(),
 });
 
 type FormGift = z.infer<typeof schemaGift>;
 
-type CreateGiftProps = {
-  onGiftCreated?: () => void;
-};
+interface CreateGiftProps {
+  onGiftCreated: () => void;
+}
 
 const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
-  const { register, handleSubmit, reset, formState } = useForm<FormGift>({
+  const { theme } = useTheme();
+  const { register, handleSubmit, reset, formState, watch } = useForm<FormGift>({
     resolver: zodResolver(schemaGift),
   });
 
-  const createGift = async (data: FormGift) => {
+  const onSubmit = async (data: FormGift) => {
     try {
-      const giftsRef = collection(db, "gifts");
-      await addDoc(giftsRef, {
-        title: data.title,
-        url: data.url,
-        valor: data.valor,
-        description: data.description || "",
+      await addDoc(collection(db, "gifts"), {
+        ...data,
         selected: false,
-        guestId: null,
-        selectedBy: null,
-        selectedEmail: null,
-        createdAt: serverTimestamp(),
+        active: true,
+        createdAt: new Date(),
       });
       reset();
-      if (onGiftCreated) onGiftCreated(); // Chama aqui, SEM togglePopup
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        console.error("Erro ao criar presente:", error.message);
-      } else {
-        console.error("Erro ao criar presente:", error);
-      }
+      onGiftCreated();
+    } catch (error) {
+      console.error("Erro ao criar presente:", error);
     }
   };
 
   return (
-    <div className="relative">
-      <form
-        onSubmit={handleSubmit(createGift)}
-        className="max-w-md mx-auto p-6 bg-white shadow-lg rounded-xl"
+    <div className="p-6">
+      <h2
+        className="text-xl font-bold mb-4 text-center"
+        style={{ color: theme?.navBarColor }}
       >
-        <h2 className="text-2xl font-semibold text-center text-pink-600 mb-6">
-          Adicionar Presente
-        </h2>
+        Adicionar Novo Presente
+      </h2>
 
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Título */}
         <div className="mb-4">
-          <label htmlFor="title" className="block font-medium text-gray-700">
-            Nome do Presente
+          <label
+            htmlFor="title"
+            className="block font-medium text-gray-700"
+          >
+            Título *
           </label>
           <input
-            type="text"
             id="title"
             {...register("title")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.title ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full p-2 rounded-lg border"
+            style={{ borderColor:  "#e5e7eb" }}
           />
           {formState.errors.title && (
             <p className="text-red-500 text-sm">
@@ -80,15 +77,14 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
         {/* URL */}
         <div className="mb-4">
           <label htmlFor="url" className="block font-medium text-gray-700">
-            Link do Produto
+            URL *
           </label>
           <input
-            type="url"
             id="url"
+            type="url"
             {...register("url")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.url ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full p-2 rounded-lg border"
+            style={{ borderColor:  "#e5e7eb" }}
           />
           {formState.errors.url && (
             <p className="text-red-500 text-sm">
@@ -100,15 +96,14 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
         {/* Valor */}
         <div className="mb-4">
           <label htmlFor="valor" className="block font-medium text-gray-700">
-            Valor
+            Valor *
           </label>
           <input
-            type="text"
             id="valor"
             {...register("valor")}
-            className={`mt-1 w-full border p-2 rounded-lg ${
-              formState.errors.valor ? "border-red-500" : "border-gray-300"
-            }`}
+            className="mt-1 w-full p-2 rounded-lg border"
+            style={{ borderColor:  "#e5e7eb" }}
+            placeholder="199.90"
           />
           {formState.errors.valor && (
             <p className="text-red-500 text-sm">
@@ -128,15 +123,31 @@ const CreateGift: React.FC<CreateGiftProps> = ({ onGiftCreated }) => {
           <textarea
             id="description"
             {...register("description")}
-            className="mt-1 w-full border p-2 rounded-lg border-gray-300"
+            className="mt-1 w-full p-2 rounded-lg border"
+            style={{ borderColor:  "#e5e7eb" }}
+            maxLength={100}
+            rows={3}
           />
+          <div className="text-right text-sm text-gray-500 mt-1">
+            {(watch("description") || "").length}/100 caracteres
+          </div>
+          {formState.errors.description && (
+            <p className="text-red-500 text-sm">
+              {formState.errors.description.message}
+            </p>
+          )}
         </div>
 
+        {/* Botão */}
         <button
           type="submit"
-          className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition mt-4 w-full"
+          className="w-full py-2 px-4 rounded-lg font-medium transition-colors hover:opacity-90"
+          style={{
+            background: theme?.giftButtonColor,
+            color: theme?.giftTextButtonColor || "#ffffff",
+          }}
         >
-          Criar presente
+          Criar Presente
         </button>
       </form>
     </div>
