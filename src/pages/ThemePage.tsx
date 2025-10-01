@@ -5,6 +5,10 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 
 export type Theme = {
+  invitationCategory?: string;
+  invitationFontFamily?: string;      // Fonte do convite
+  invitationTextColor?: string;       // Cor do texto do convite
+  invitationBgColor?: string;
   bgColor: string;
   bgTextColor: string;
   navBarColor: string;
@@ -226,7 +230,61 @@ const ThemePage: React.FC = () => {
               className="ml-2 border rounded px-2 py-1"
             />
           </label>
+          
         </div>
+        {/* Convite */}
+        <div>
+  <h3 className="text-lg font-semibold mb-2">Convite</h3>
+  <label className="block mb-2">
+    Fonte do convite
+    <select
+      name="invitationFontFamily"
+      value={theme.invitationFontFamily || "inherit"}
+      onChange={handleChange}
+      className="ml-2 border rounded px-2 py-1"
+    >
+      <label className="block mb-2">
+            Categoria do convite
+           <select
+              name="invitationCategory"
+              value={theme.invitationCategory || "classic"}
+              onChange={handleChange}
+              className="ml-2 border rounded px-2 py-1" >
+              <option value="classic">Clássico</option>
+              <option value="modern">Moderno</option>
+              <option value="floral">Floral</option>
+              <option value="kids">Infantil</option>
+              </select>
+              </label>
+      <option value="inherit">Padrão</option>
+      <option value="'Montserrat', sans-serif">Montserrat</option>
+      <option value="'Roboto', sans-serif">Roboto</option>
+      <option value="'Parisienne', cursive">Parisienne</option>
+      <option value="'Arial', sans-serif">Arial</option>
+      <option value="'Times New Roman', serif">Times New Roman</option>
+    </select>
+  </label>
+  <label className="block mb-2">
+    Cor do texto do convite
+    <input
+      type="color"
+      name="invitationTextColor"
+      value={theme.invitationTextColor || "#222222"}
+      onChange={handleChange}
+      className="ml-2"
+    />
+  </label>
+  <label className="block mb-2">
+    Cor de fundo do convite
+    <input
+      type="color"
+      name="invitationBgColor"
+      value={theme.invitationBgColor || "#ffffff"}
+      onChange={handleChange}
+      className="ml-2"
+    />
+  </label>
+</div>
         {/* Botões do sistema */}
         <div>
           <h3 className="text-lg font-semibold mb-2">Botões do sistema</h3>
