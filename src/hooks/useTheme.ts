@@ -3,6 +3,10 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 
 export type Theme = {
+  invitationCategory?: string;
+  invitationFontFamily?: string;      // Fonte do convite
+  invitationTextColor?: string;       // Cor do texto do convite
+  invitationBgColor?: string;
   bgColor: string;
   bgTextColor: string;
   navBarColor: string;
