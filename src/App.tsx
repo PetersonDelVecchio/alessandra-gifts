@@ -8,7 +8,7 @@ import {
 import Login from "./pages/Login";
 import Guest from "./pages/Guest";
 import Admin from "./pages/Admin";
-import Dashboard from "./pages/Dashboard";
+import Invite from "./pages/Invite";
 import ThemePage from "./pages/ThemePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
@@ -35,7 +35,7 @@ const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/invite" element={<Invite />} />
         <Route
           path="/theme"
           element={
