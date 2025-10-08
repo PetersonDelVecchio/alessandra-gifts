@@ -2,8 +2,10 @@
 import React, { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 
 dayjs.extend(duration);
+dayjs.extend(customParseFormat);
 
 type CountdownWidgetProps = {
   eventDate: string;
@@ -20,19 +22,47 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
 }) => {
   const [timeLeft, setTimeLeft] = useState<string>("");
 
-  const eventDateTime = `${eventDate} ${eventHour}`;
-
   useEffect(() => {
     const updateCountdown = () => {
       const now = dayjs();
-      const event = dayjs(eventDateTime, "DD/MM/YYYY HH:mm");
+      
+      // Tentar diferentes formatos de data
+      let event;
+      const dateFormats = [
+        "DD/MM/YYYY HH:mm",  // Formato brasileiro
+        "MM/DD/YYYY HH:mm",  // Formato americano
+        "YYYY-MM-DD HH:mm",  // Formato ISO
+      ];
+      
+      const eventDateTime = `${eventDate} ${eventHour}`;
+      
+      // Tentar cada formato até encontrar um válido
+      for (const format of dateFormats) {
+        event = dayjs(eventDateTime, format);
+        if (event.isValid()) {
+          break;
+        }
+      }
+      
+      // Se nenhum formato funcionou, tentar parsing automático
+      if (!event || !event.isValid()) {
+        event = dayjs(eventDateTime);
+      }
+      
+      console.log('Data do evento:', event.format('DD/MM/YYYY HH:mm'));
+      console.log('Data atual:', now.format('DD/MM/YYYY HH:mm'));
+      
       const diff = event.diff(now);
+      console.log('Diferença em ms:', diff);
 
       if (diff > 0) {
         const d = dayjs.duration(diff);
-        setTimeLeft(
-          `${d.days()}d ${d.hours()}h ${d.minutes()}m ${d.seconds()}s`
-        );
+        const days = Math.floor(d.asDays());
+        const hours = d.hours();
+        const minutes = d.minutes();
+        const seconds = d.seconds();
+        
+        setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
       } else {
         setTimeLeft("A festa já começou!");
       }
@@ -46,7 +76,7 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
 
     // Cleanup
     return () => clearInterval(interval);
-  }, [eventDateTime]);
+  }, [eventDate, eventHour]);
 
   return (
     <div className={`text-center ${className}`} style={style}>

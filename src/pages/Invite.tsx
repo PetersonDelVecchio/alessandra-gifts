@@ -86,8 +86,8 @@ const Invite: React.FC = () => {
   const navigate = useNavigate();
 
   // Usa os dados do tema para o evento
-  const eventDate = theme?.inviteDate || "12/10/2025";
-  const eventHour = theme?.inviteHour || "19:00";
+  const eventDate = theme?.inviteDate;
+  const eventHour = theme?.inviteHour;
 
   useEffect(() => {
     const checkGiftSelected = async () => {
