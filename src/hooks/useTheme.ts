@@ -38,6 +38,9 @@ export type Theme = {
   inviteCardTextColor: string;
   inviteBackgroundColor: string;
   inviteTextColor: string;
+  pixQrCodeImage?: string;
+  pixKey?: string;
+  pixBeneficiary?: string;
 };
 
 const THEME_DOC_ID = "59zMCCzevS9uOZumvxZ4";
