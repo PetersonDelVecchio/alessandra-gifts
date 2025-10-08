@@ -3,11 +3,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useTheme } from "../hooks/useTheme";
 import { useNavigate } from "react-router-dom";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
 import Loading from "../components/Loading";
-
-dayjs.extend(duration);
+import CountdownWidget from "../components/CountdownWidget";
 
 type Gift = {
   id: string;
@@ -85,14 +82,12 @@ const processFormattedLine = (line: string) => {
 const Invite: React.FC = () => {
   const [gift, setGift] = useState<Gift | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeLeft, setTimeLeft] = useState<string>("");
   const { theme, loading: themeLoading } = useTheme();
   const navigate = useNavigate();
 
   // Usa os dados do tema para o evento
   const eventDate = theme?.inviteDate || "12/10/2025";
   const eventHour = theme?.inviteHour || "19:00";
-  const eventDateTime = `${eventDate} ${eventHour}`;
 
   useEffect(() => {
     const checkGiftSelected = async () => {
@@ -142,25 +137,6 @@ const Invite: React.FC = () => {
 
     fetchGuestAndGift();
   }, [navigate]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = dayjs();
-      const event = dayjs(eventDateTime, "DD/MM/YYYY HH:mm");
-      const diff = event.diff(now);
-
-      if (diff > 0) {
-        const d = dayjs.duration(diff);
-        setTimeLeft(
-          `${d.days()}d ${d.hours()}h ${d.minutes()}m ${d.seconds()}s`
-        );
-      } else {
-        setTimeLeft("A festa já começou!");
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [eventDateTime]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -213,12 +189,12 @@ const Invite: React.FC = () => {
         {theme?.titleSelectedGift || "Presente Selecionado"}
       </div>
 
-      {/* Timer regressivo */}
-      <div className="mb-6 text-center">
-        <span className="text-xl font-bold text-pink-600">
-          Faltam: {timeLeft}
-        </span>
-      </div>
+      {/* Widget de Contagem Regressiva */}
+      <CountdownWidget
+        eventDate={eventDate}
+        eventHour={eventHour}
+        className="mb-6"
+      />
 
       {/* Card do Convite */}
       <div className="grid grid-cols-1 gap-6 mt-6 max-w-2xl mx-auto">
