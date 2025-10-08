@@ -20,7 +20,7 @@ type Gift = {
 // Função atualizada para suportar quebras de linha, negrito e itálico
 const parseFormattedText = (text: string) => {
   // Primeiro, divide por quebras de linha
-  return text.split('\n').map((line, lineIndex) => (
+  return text.split("\n").map((line, lineIndex) => (
     <React.Fragment key={lineIndex}>
       {lineIndex > 0 && <br />}
       {processFormattedLine(line)}
@@ -29,49 +29,51 @@ const parseFormattedText = (text: string) => {
 };
 
 const processFormattedLine = (line: string) => {
-  const tokens: Array<{ type: 'text' | 'bold' | 'italic'; content: string }> = [];
+  const tokens: Array<{ type: "text" | "bold" | "italic"; content: string }> =
+    [];
   let currentIndex = 0;
-  
+
   while (currentIndex < line.length) {
     // Procura por **texto**
     const boldMatch = line.slice(currentIndex).match(/^\*\*([^*]+)\*\*/);
     if (boldMatch) {
-      tokens.push({ type: 'bold', content: boldMatch[1] });
+      tokens.push({ type: "bold", content: boldMatch[1] });
       currentIndex += boldMatch[0].length;
       continue;
     }
-    
+
     // Procura por _texto_
     const italicMatch = line.slice(currentIndex).match(/^_([^_]+)_/);
     if (italicMatch) {
-      tokens.push({ type: 'italic', content: italicMatch[1] });
+      tokens.push({ type: "italic", content: italicMatch[1] });
       currentIndex += italicMatch[0].length;
       continue;
     }
-    
+
     // Se não encontrou formatação, adiciona o próximo caractere como texto
     const nextSpecialChar = line.slice(currentIndex).search(/(\*\*|_)/);
-    const textLength = nextSpecialChar === -1 ? line.length - currentIndex : nextSpecialChar;
-    
+    const textLength =
+      nextSpecialChar === -1 ? line.length - currentIndex : nextSpecialChar;
+
     if (textLength > 0) {
-      tokens.push({ 
-        type: 'text', 
-        content: line.slice(currentIndex, currentIndex + textLength) 
+      tokens.push({
+        type: "text",
+        content: line.slice(currentIndex, currentIndex + textLength),
       });
       currentIndex += textLength;
     } else {
       // Se encontrou um caractere especial mas não conseguiu fazer match, trata como texto normal
-      tokens.push({ type: 'text', content: line[currentIndex] });
+      tokens.push({ type: "text", content: line[currentIndex] });
       currentIndex++;
     }
   }
-  
+
   // Agora processa tokens aninhados (itálico dentro de negrito ou vice-versa)
   return tokens.map((token, index) => {
-    if (token.type === 'bold') {
+    if (token.type === "bold") {
       // Processa formatação dentro do negrito
       return <strong key={index}>{processFormattedLine(token.content)}</strong>;
-    } else if (token.type === 'italic') {
+    } else if (token.type === "italic") {
       // Processa formatação dentro do itálico
       return <em key={index}>{processFormattedLine(token.content)}</em>;
     } else {
@@ -231,12 +233,18 @@ const Invite: React.FC = () => {
             fontFamily: theme?.giftFontFamily,
           }}
         >
-          <h1 className="text-3xl font-bold text-center mb-2" style={{ fontFamily: theme?.titleFontFamily }}>
+          <h1
+            className="text-3xl font-bold text-center mb-2"
+            style={{ fontFamily: theme?.titleFontFamily }}
+          >
             Convite Especial 🎉
           </h1>
-          
+
           <p className="text-lg text-center mb-4">
-            {parseFormattedText(theme?.inviteTitle || "Você confirmou presença no aniversário da **Alessandra**!")}
+            {parseFormattedText(
+              theme?.inviteTitle ||
+                "Você confirmou presença no aniversário da **Alessandra**!"
+            )}
           </p>
 
           {/* Presente Escolhido */}
@@ -248,7 +256,9 @@ const Invite: React.FC = () => {
               color: theme?.inviteCardTextColor || theme?.giftTextColor,
             }}
           >
-            <h2 className="text-xl font-semibold mb-2 text-center">Presente Escolhido</h2>
+            <h2 className="text-xl font-semibold mb-2 text-center">
+              Presente Escolhido
+            </h2>
             <div className="text-center">
               {gift?.url ? (
                 <a
@@ -256,7 +266,9 @@ const Invite: React.FC = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline font-bold text-lg"
-                  style={{ color: theme?.inviteCardTextColor || theme?.giftTextColor }}
+                  style={{
+                    color: theme?.inviteCardTextColor || theme?.giftTextColor,
+                  }}
                 >
                   {gift.title}
                 </a>
@@ -274,17 +286,34 @@ const Invite: React.FC = () => {
 
           {/* Detalhes do Evento */}
           <div className="mb-4">
-            <h2 className="text-xl font-semibold mb-2 text-center">Detalhes do Evento</h2>
+            <h2 className="text-xl font-semibold mb-2 text-center">
+              Detalhes do Evento
+            </h2>
             <div className="text-center">
-              <p><strong>Data:</strong> {theme?.inviteDate || "12/10/2025"}</p>
-              <p><strong>Horário:</strong> {theme?.inviteHour || "19:00"}</p>
-              <p><strong>Local:</strong> {theme?.inviteAddress || "Rua das Flores, 123 - Salão de Festas"}</p>
-              
+              <p>
+                <strong>Data:</strong> {theme?.inviteDate || "12/10/2025"}
+              </p>
+              <p>
+                <strong>Horário:</strong> {theme?.inviteHour || "19:00"}
+              </p>
+              <p>
+                <strong>Local:</strong>{" "}
+                {theme?.inviteAddress ||
+                  "Rua das Flores, 123 - Salão de Festas"}
+              </p>
+
               {theme?.inviteObs && (
                 <>
                   <br />
-                  <p><strong>Observação:</strong></p>
-                  <p>{theme.inviteObs}</p>
+                  <p>
+                    <strong>Observação:</strong>
+                  </p>
+                  <p className="text-lg text-center mb-4">
+                    {parseFormattedText(
+                      theme.inviteObs ||
+                        "Você confirmou presença no aniversário da **Alessandra**!"
+                    )}
+                  </p>
                 </>
               )}
             </div>
@@ -293,7 +322,7 @@ const Invite: React.FC = () => {
           {/* Botão WhatsApp - só aparece se tiver número */}
           {theme?.whatsapp && (
             <button
-              onClick={() => window.open(whatsappLink, '_blank')}
+              onClick={() => window.open(whatsappLink, "_blank")}
               className="px-4 py-2 rounded-lg shadow mt-4 flex items-center justify-center gap-2 transition-colors duration-300"
               style={{
                 background: theme?.giftButtonColor,

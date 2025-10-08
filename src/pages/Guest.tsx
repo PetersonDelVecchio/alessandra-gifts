@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
 import Loading from "../components/Loading";
+import GiftConfirmationModal from "../components/GiftConfirmation";
+import PixModal from "../components/GiftPix";
 
 // Defina o tipo Gift
 type Gift = {
@@ -13,16 +15,19 @@ type Gift = {
   description: string;
   selected: boolean;
   selectedBy?: string;
-  selectedEmail?: string;
+  selectedPhone?: string;
   guestId?: string | null;
-  active?: boolean; // Adicionar campo active ao tipo Gift
+  active?: boolean;
+  valor?: string;
+  url?: string;
 };
 
 const Guest: React.FC = () => {
   const [gifts, setGifts] = useState<Gift[]>([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [giftId, setGiftId] = useState<string | null>(null);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [showPixModal, setShowPixModal] = useState(false);
   const navigate = useNavigate();
   const { theme, loading: themeLoading } = useTheme();
   const { showToast } = useToast();
@@ -30,11 +35,6 @@ const Guest: React.FC = () => {
   const giftsCollection = collection(db, "gifts");
 
   useEffect(() => {
-    const storedName = localStorage.getItem("guestName") || "";
-    const storedEmail = localStorage.getItem("guestEmail") || "";
-    setName(storedName);
-    setEmail(storedEmail);
-
     // Busca o guestId e verifica se já escolheu presente
     const guestId = localStorage.getItem("guestId");
     if (guestId) {
@@ -57,9 +57,11 @@ const Guest: React.FC = () => {
         description: doc.data().description,
         selected: doc.data().selected,
         selectedBy: doc.data().selectedBy,
-        selectedEmail: doc.data().selectedEmail,
+        selectedPhone: doc.data().selectedPhone,
         guestId: doc.data().guestId,
-        active: doc.data().active !== false, // Se não existe ou é true, considera ativo
+        active: doc.data().active !== false,
+        valor: doc.data().valor || "",
+        url: doc.data().url || "",
       }));
       setGifts(giftsList);
     });
@@ -73,8 +75,13 @@ const Guest: React.FC = () => {
     }
   }, [giftId, navigate]);
 
-  const handleSelect = async (gift: Gift) => {
-    if (!gift.id) return;
+  const handleSelect = (gift: Gift) => {
+    setSelectedGift(gift);
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmGift = async (method: "levar" | "pix") => {
+    if (!selectedGift) return;
 
     const guestId = localStorage.getItem("guestId");
     if (!guestId) {
@@ -82,25 +89,49 @@ const Guest: React.FC = () => {
       return;
     }
 
-    // Atualiza o presente com guestId apenas
-    const giftRef = doc(db, "gifts", gift.id);
-    await updateDoc(giftRef, {
-      selected: true,
-      guestId: guestId,
-    });
+    try {
+      // Atualiza o presente
+      const giftRef = doc(db, "gifts", selectedGift.id);
+      await updateDoc(giftRef, {
+        selected: true,
+        guestId: guestId,
+      });
 
-    // Atualiza o convidado com o giftId escolhido
-    const guestRef = doc(db, "guests", guestId);
-    await updateDoc(guestRef, {
-      giftId: gift.id,
-      giftSelected: true,
-    });
+      // Atualiza o convidado
+      const guestRef = doc(db, "guests", guestId);
+      await updateDoc(guestRef, {
+        giftId: selectedGift.id,
+        giftSelected: true,
+        giftMethod: method,
+        confirmedAt: serverTimestamp(),
+      });
 
-    showToast("Presente selecionado!");
+      showToast("Presente confirmado!");
+      setShowConfirmationModal(false);
 
-    setTimeout(() => {
-      navigate("/invite");
-    }, 1200); // 1.2 segundos para o usuário ver o toast
+      if (method === "pix") {
+        setShowPixModal(true);
+      } else {
+        // Método "levar" - vai direto para invite
+        setTimeout(() => {
+          navigate("/invite");
+        }, 800);
+      }
+    } catch (error) {
+      console.error("Erro ao confirmar presente:", error);
+      showToast("Erro ao confirmar presente. Tente novamente.");
+    }
+  };
+
+  const handleGoToInvite = () => {
+    setShowPixModal(false);
+    navigate("/invite");
+  };
+
+  const handleCloseModals = () => {
+    setShowConfirmationModal(false);
+    setShowPixModal(false);
+    setSelectedGift(null);
   };
 
   const handleLogout = () => {
@@ -148,10 +179,6 @@ const Guest: React.FC = () => {
         {theme?.titleListGift || "Lista de Presentes"}
       </div>
 
-      <p className="mt-2 text-black text-center">
-        Olá, {name}! ({email})
-      </p>
-
       {/* Cards */}
       <div
         className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6"
@@ -165,7 +192,7 @@ const Guest: React.FC = () => {
           .map((gift) => (
             <div
               key={gift.id}
-              className="rounded-lg border p-4 flex flex-col gap-2 wrap-break-word"
+              className="rounded-lg border p-4 flex flex-col"
               style={{
                 opacity: gift.selected ? 0.6 : 1,
                 background: theme?.giftBgColor,
@@ -174,22 +201,35 @@ const Guest: React.FC = () => {
                 borderWidth: 1,
                 borderStyle: "solid",
                 fontFamily: theme?.giftFontFamily,
+                height: '180px',
+                maxWidth: '350px',
               }}
             >
-              <span className="font-semibold">{gift.title}</span>
-              <div
-                className="text-sm flex-1 mb-4"
+              {/* Título - altura limitada */}
+              <div 
+                className="font-semibold mb-2"
                 style={{
-                  minHeight: "10px",
-                  maxHeight: "35px",
-                  overflow: "hidden",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 5,
-                  WebkitBoxOrient: "vertical",
+                  minHeight: '48px',
+                  maxHeight: '72px',
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  wordBreak: 'break-word',
                 }}
               >
-                {gift.description}
+                {gift.title}
               </div>
+              
+              {/* Valor */}
+              <div className="font-extralight mb-2">
+                R$ {gift.valor}
+              </div>
+              
+              {/* Espaçador flexível */}
+              <div className="flex-1"></div>
+              
+              {/* Botão */}
               <button
                 disabled={gift.selected}
                 style={{
@@ -197,7 +237,7 @@ const Guest: React.FC = () => {
                   color: gift.selected ? "#666" : theme?.giftTextButtonColor,
                   fontFamily: theme?.giftFontFamily,
                 }}
-                className="px-4 py-2 rounded-lg shadow mt-2"
+                className="w-full px-4 py-2 rounded-lg shadow transition-colors hover:brightness-90"
                 onClick={() => handleSelect(gift)}
               >
                 {gift.selected ? "Indisponível" : "Escolher presente"}
@@ -205,6 +245,22 @@ const Guest: React.FC = () => {
             </div>
           ))}
       </div>
+
+      {/* Modal de Confirmação */}
+      <GiftConfirmationModal
+        isOpen={showConfirmationModal}
+        onClose={handleCloseModals}
+        gift={selectedGift}
+        onConfirm={handleConfirmGift}
+      />
+
+      {/* Modal do Pix */}
+      <PixModal
+        isOpen={showPixModal}
+        onClose={handleCloseModals}
+        gift={selectedGift}
+        onGoToInvite={handleGoToInvite}
+      />
     </div>
   );
 };

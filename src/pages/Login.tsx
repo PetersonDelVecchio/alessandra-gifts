@@ -1,18 +1,34 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
-import Register from "../components/Register";
 import Loading from "../components/Loading";
 import { useTheme } from "../hooks/useTheme";
+import { z } from "zod";
+
+// Esquema de validação
+const loginSchema = z.object({
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+  phone: z
+    .string()
+    .min(10, "Celular deve ter pelo menos 10 dígitos")
+    .regex(/^\d+$/, "Apenas números são permitidos"),
+});
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
   const { theme, loading: themeLoading } = useTheme();
 
@@ -25,47 +41,104 @@ const Login: React.FC = () => {
     }
   }, [navigate]);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      alert("Por favor, preencha todos os campos.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, "guests"),
-        where("email", "==", email),
-        where("password", "==", password)
-      );
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        alert("Usuário ou senha inválidos.");
-        setLoading(false);
-        return;
-      }
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      localStorage.setItem("guestId", userDoc.id);
-      localStorage.setItem("guestName", userData.name);
-      localStorage.setItem("guestEmail", userData.email);
-      localStorage.setItem("userType", userData.type);
+  const formatPhone = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, "");
 
-      if (userData.type === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/guest");
-      }
-    } catch (error) {
-      alert("Erro ao autenticar.");
-      console.error("Login error:", error);
+    // Aplica a máscara (11) 99999-9999
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
     }
-    setLoading(false);
+    return value;
   };
 
-  const handleRegisterSuccess = () => {
-    setShowRegister(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setPhone(formatted);
+  };
+
+  const getCleanPhone = (phone: string) => {
+    return phone.replace(/\D/g, "");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validação
+    const cleanPhone = getCleanPhone(phone);
+    const validation = loginSchema.safeParse({ name, phone: cleanPhone });
+
+    if (!validation.success) {
+      const fieldErrors: { name?: string; phone?: string } = {};
+      validation.error.issues.forEach((issue) => {
+        if (issue.path[0] === "name") fieldErrors.name = issue.message;
+        if (issue.path[0] === "phone") fieldErrors.phone = issue.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setErrors({});
+    setLoading(true);
+    setMessage("");
+
+    try {
+      // Busca por celular existente
+      const q = query(
+        collection(db, "guests"),
+        where("phone", "==", cleanPhone)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // Usuário existe - fazer login
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+
+        localStorage.setItem("guestId", userDoc.id);
+        localStorage.setItem("guestName", userData.name);
+        localStorage.setItem("guestPhone", userData.phone);
+        localStorage.setItem("userType", userData.type);
+
+        setMessage("Login realizado com sucesso!");
+
+        setTimeout(() => {
+          if (userData.type === "admin") {
+            navigate("/admin");
+          } else {
+            navigate("/guest");
+          }
+        }, 1000);
+      } else {
+        // Usuário não existe - registrar
+        const newUserData = {
+          name: name.trim(),
+          phone: cleanPhone,
+          type: "guest",
+          giftSelected: false,
+          giftId: null,
+          createdAt: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(db, "guests"), newUserData);
+
+        localStorage.setItem("guestId", docRef.id);
+        localStorage.setItem("guestName", name.trim());
+        localStorage.setItem("guestPhone", cleanPhone);
+        localStorage.setItem("userType", "guest");
+
+        setMessage("Conta criada e login realizado com sucesso!");
+
+        setTimeout(() => {
+          navigate("/guest");
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("Erro ao autenticar/registrar:", error);
+      setMessage("Erro ao processar solicitação. Tente novamente.");
+    }
+
+    setLoading(false);
   };
 
   if (themeLoading) return <Loading message="Carregando aplicação..." />;
@@ -86,89 +159,92 @@ const Login: React.FC = () => {
         <h1
           className="text-3xl md:text-4xl font-parisienne text-center mb-6"
           style={{
-            color: theme?.navBarColor,
+            color: theme?.navBarColor || "#ec4899",
             fontFamily: theme?.titleFontFamily || "'Parisienne', cursive",
           }}
         >
-          Bem-vindo à Lista de Presentes 🎂
+          Lista de Presentes 🎂
         </h1>
 
-        <div className="flex flex-col gap-4 w-full mt-2">
-          <input
-            type="email"
-            placeholder="E-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-pink-400 transition border-2"
-            style={{
-              borderColor: theme?.giftBorderColor,
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-pink-400 transition border-2"
-            style={{
-              borderColor: theme?.giftBorderColor,
-            }}
-          />
+        <p className="text-center text-gray-600 mb-6 text-sm">
+          Digite seu nome e celular para entrar ou criar sua conta
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+          {/* Nome */}
+          <div>
+            <input
+              type="text"
+              placeholder="Seu nome completo"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 transition border-2"
+              style={{
+                borderColor: errors.name
+                  ? "#ef4444"
+                  : theme?.giftBorderColor || "#d1d5db",
+              }}
+              disabled={loading}
+            />
+            {errors.name && (
+              <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Celular */}
+          <div>
+            <input
+              type="tel"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={handlePhoneChange}
+              className="rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 transition border-2"
+              style={{
+                borderColor: errors.phone
+                  ? "#ef4444"
+                  : theme?.giftBorderColor || "#d1d5db",
+              }}
+              maxLength={15}
+              disabled={loading}
+            />
+            {errors.phone && (
+              <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+            )}
+          </div>
+
+          {/* Botão */}
           <button
-            className="w-full font-semibold text-lg py-3 rounded-2xl shadow-md transition-colors duration-300 hover:opacity-90"
-            onClick={handleLogin}
+            type="submit"
             disabled={loading}
+            className="w-full font-semibold text-lg py-3 rounded-2xl shadow-md transition-all duration-300 hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: theme?.giftButtonColor,
+              background: theme?.giftButtonColor || "#ec4899",
               color: theme?.giftTextButtonColor || "#ffffff",
             }}
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Processando..." : "Entrar"}
           </button>
-        </div>
+        </form>
 
-        {/* Linha divisória */}
-        <div className="my-4 w-full border-t border-pink-100"></div>
-
-        {/* Botão de registro */}
-        <div className="w-full text-center">
-          <span className="text-gray-600">Não possui conta? </span>
-          <button
-            className="font-semibold hover:underline"
-            onClick={() => setShowRegister(true)}
-            type="button"
-            style={{ color: theme?.navBarColor }}
+        {/* Mensagem de feedback */}
+        {message && (
+          <div
+            className={`mt-4 p-3 rounded-lg text-center text-sm ${
+              message.includes("sucesso")
+                ? "bg-green-100 text-green-700"
+                : "bg-red-100 text-red-700"
+            }`}
           >
-            Clique aqui
-          </button>
+            {message}
+          </div>
+        )}
+
+        {/* Informação adicional */}
+        <div className="mt-6 text-center text-xs text-gray-500">
+          <p>Se você já tem uma conta, será feito o login automaticamente.</p>
+          <p>Caso contrário, uma nova conta será criada para você.</p>
         </div>
       </motion.div>
-
-      {/* Modal de registro */}
-      {showRegister && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
-            <button
-              className="absolute top-2 right-3 text-2xl font-bold"
-              onClick={() => setShowRegister(false)}
-              aria-label="Fechar"
-              style={{ color: theme?.navBarColor }}
-            >
-              ×
-            </button>
-            <Register onRegisterSuccess={handleRegisterSuccess} />
-          </div>
-        </div>
-      )}
-
-      {/* Popup de sucesso */}
-      {showSuccess && (
-        <div className="fixed bottom-5 right-5 bg-white p-4 rounded-lg shadow-md z-50">
-          <p className="text-green-600 font-semibold">
-            Usuário criado com sucesso!
-          </p>
-        </div>
-      )}
     </div>
   );
 };
