@@ -91,24 +91,39 @@ const Login: React.FC = () => {
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        // Usuário existe - fazer login
+        // Usuário com esse número existe
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data();
 
-        localStorage.setItem("guestId", userDoc.id);
-        localStorage.setItem("guestName", userData.name);
-        localStorage.setItem("guestPhone", userData.phone);
-        localStorage.setItem("userType", userData.type);
+        // Comparar nomes (case insensitive)
+        const nameFromDB = userData.name.toLowerCase().trim();
+        const nameFromInput = name.toLowerCase().trim();
 
-        setMessage("Login realizado com sucesso!");
+        if (nameFromDB === nameFromInput) {
+          // Nome confere - fazer login
+          localStorage.setItem("guestId", userDoc.id);
+          localStorage.setItem("guestName", userData.name);
+          localStorage.setItem("guestPhone", userData.phone);
+          localStorage.setItem("userType", userData.type);
 
-        setTimeout(() => {
-          if (userData.type === "admin") {
-            navigate("/admin");
-          } else {
-            navigate("/guest");
-          }
-        }, 1000);
+          setMessage("Login realizado com sucesso!");
+
+          setTimeout(() => {
+            if (userData.type === "admin") {
+              navigate("/admin");
+            } else {
+              navigate("/guest");
+            }
+          }, 1000);
+        } else {
+          // Nome não confere
+          setMessage(
+            "Número já registrado com outro nome. Verifique os dados informados."
+          );
+          setErrors({
+            phone: "Este número já está registrado para outra pessoa",
+          });
+        }
       } else {
         // Usuário não existe - registrar
         const newUserData = {
@@ -236,6 +251,17 @@ const Login: React.FC = () => {
             }`}
           >
             {message}
+          </div>
+        )}
+
+        {/* Erro específico do número */}
+        {errors.phone && !errors.name && (
+          <div className="mt-2 p-3 rounded-lg text-center text-sm bg-yellow-100 text-yellow-700">
+            <p className="font-semibold">💡 Dica:</p>
+            <p>
+              Se este é realmente seu número, verifique se digitou seu nome
+              exatamente como foi cadastrado.
+            </p>
           </div>
         )}
 
