@@ -8,6 +8,8 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import CreateGift from "../components/CreateGift";
+import GuestsList from "../components/admin/GuestsList";
+import GiftsList from "../components/admin/GiftsList";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
@@ -15,10 +17,11 @@ import { useToast } from "../context/ToastContext";
 type Guest = {
   id: string;
   name: string;
-  email: string;
+  phone: string;
   giftSelected: boolean;
   giftId?: string | null;
-  createdAt?: Timestamp | null;
+  giftMethod?: string;
+  confirmedAt?: Timestamp | null;
 };
 
 type Gift = {
@@ -29,6 +32,7 @@ type Gift = {
   valor?: string | number;
   selected: boolean;
   guestId?: string | null;
+  active?: boolean;
 };
 
 const Admin: React.FC = () => {
@@ -181,6 +185,8 @@ const Admin: React.FC = () => {
         await updateDoc(guestRef, {
           giftId: "",
           giftSelected: false,
+          giftMethod: "", // Remove o método também
+          confirmedAt: null, // Remove a data de confirmação
         });
       }
 
@@ -203,10 +209,6 @@ const Admin: React.FC = () => {
   // Estatísticas
   const totalGuests = guests.length;
   const confirmedGuests = guests.filter((g) => g.giftSelected).length;
-  const totalValue = gifts.reduce(
-    (acc, gift) => acc + (Number(gift.valor) || 0),
-    0
-  );
 
   // Logout
   const handleLogout = () => {
@@ -230,6 +232,7 @@ const Admin: React.FC = () => {
     return map;
   }, [guests]);
 
+
   if (loading) return <p className="text-center mt-10">Carregando...</p>;
 
   return (
@@ -237,10 +240,17 @@ const Admin: React.FC = () => {
       {/* Botão logout */}
       <button
         onClick={handleLogout}
+        style={{
+          borderColor: theme?.logoutButtonColor || "#d1d5db",
+          background: theme?.logoutButtonColor || "#ffffff",
+          color: theme?.logoutButtonTextColor || "#db2777",
+          fontFamily: theme?.logoutButtonFontFamily || "inherit",
+        }}
         className="absolute top-6 right-6 bg-white border-2 border-pink-500 text-pink-500 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-pink-50 transition-colors duration-300"
       >
         Sair
       </button>
+
       <button
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
         style={{ background: theme?.navBarColor, color: theme?.navBarText }}
@@ -270,10 +280,47 @@ const Admin: React.FC = () => {
         </div>
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Valor Total dos Presentes</h3>
-          <p className="text-2xl font-bold text-blue-600">R$ {totalValue}</p>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-2xl font-bold text-purple-600">
+              R${" "}
+              {(() => {
+                const confirmedValue = gifts
+                  .filter(
+                    (gift) => gift.active !== false && gift.selected === true
+                  )
+                  .reduce((acc, gift) => {
+                    const valor =
+                      typeof gift.valor === "string"
+                        ? parseFloat(gift.valor)
+                        : gift.valor || 0;
+                    return acc + valor;
+                  }, 0);
+                return confirmedValue.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                });
+              })()}
+            </p>
+            <p className="text-2xl font-bold text-blue-600">/</p>
+            <p className="text-2xl font-bold text-blue-600">
+              R${" "}
+              {(() => {
+                const totalValue = gifts
+                  .filter((gift) => gift.active !== false)
+                  .reduce((acc, gift) => {
+                    const valor =
+                      typeof gift.valor === "string"
+                        ? parseFloat(gift.valor)
+                        : gift.valor || 0;
+                    return acc + valor;
+                  }, 0);
+                return totalValue.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                });
+              })()}
+            </p>
+          </div>
         </div>
       </div>
-
       {/* Botão para abrir modal */}
       <button
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
@@ -482,196 +529,17 @@ const Admin: React.FC = () => {
         </div>
       )}
 
-      {/* Tabela de convidados */}
-      <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">Convidados</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-300 rounded-xl">
-            <thead
-              style={{
-                backgroundColor: theme?.navBarColor,
-                color: theme?.navBarText,
-              }}
-            >
-              <tr>
-                <th className="px-4 py-2">Nome</th>
-                <th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Presente</th>
-                <th className="px-4 py-2">Data Confirmação</th>
-                <th className="px-4 py-2">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {guests.map((guest) => {
-                let giftTitle = "-";
-                let giftUrl = "";
-                if (guest.giftId) {
-                  const gift = gifts.find((g) => g.id === guest.giftId);
-                  if (gift) {
-                    giftTitle = gift.title;
-                    giftUrl = typeof gift.url === "string" ? gift.url : "";
-                  }
-                }
-                return (
-                  <tr key={guest.id} className="text-center border-b">
-                    <td className="px-4 py-2">{guest.name}</td>
-                    <td className="px-4 py-2">{guest.email}</td>
-                    <td className="px-4 py-2">
-                      {giftTitle !== "-" && giftUrl ? (
-                        <a
-                          href={giftUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-pink-600 underline "
-                          style={{ color: theme?.navBarColor }}
-                        >
-                          {giftTitle}
-                        </a>
-                      ) : (
-                        giftTitle
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      {guest.createdAt?.toDate
-                        ? guest.createdAt.toDate().toLocaleDateString("pt-BR")
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-2">
-                      {guest.giftSelected ? "✔️" : "❌"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Componentes separados */}
+      <GuestsList guests={guests} gifts={gifts} theme={theme} />
 
-      {/* Tabela de presentes */}
-      <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">Presentes</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-300 rounded-xl">
-            <thead
-              style={{
-                backgroundColor: theme?.navBarColor,
-                color: theme?.navBarText,
-              }}
-            >
-              <tr>
-                <th className="px-4 py-2">Nome</th>
-                <th className="px-4 py-2">Selecionado</th>
-                <th className="px-4 py-2">E-mail</th>
-                <th className="px-4 py-2">Valor</th>
-                <th className="px-4 py-2">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gifts.map((gift) => {
-                const guest = gift.guestId ? guestMap[gift.guestId] : null;
-                return (
-                  <tr key={gift.id} className="text-center border-b">
-                    <td className="px-4 py-2">{gift.title}</td>
-                    <td className="px-4 py-2">
-                      {gift.selected
-                        ? guest
-                          ? guest.name
-                          : "Selecionado"
-                        : "❌"}
-                    </td>
-                    <td className="px-4 py-2">
-                      {gift.selected ? (guest ? guest.email : "-") : "-"}
-                    </td>
-                    <td className="px-4 py-2">R$ {gift.valor}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex justify-center gap-2">
-                        {/* Botão Editar */}
-                        <button
-                          onClick={() => openEditModal(gift)}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            className="w-5 h-5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                            />
-                          </svg>
-                        </button>
-
-                        {/* Botão Deletar */}
-                        <button
-                          onClick={() => openDeleteModal(gift)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                          title="Remover"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            className="w-5 h-5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                            />
-                          </svg>
-                        </button>
-
-                        {/* Botão Desvincular - sempre aparece, mas disabled quando não selecionado */}
-                        <button
-                          onClick={
-                            gift.selected
-                              ? () => openUnlinkModal(gift)
-                              : undefined
-                          }
-                          disabled={!gift.selected}
-                          className={`p-2 rounded-lg transition-colors ${
-                            gift.selected
-                              ? "text-orange-600 hover:bg-orange-100 cursor-pointer"
-                              : "text-gray-400 cursor-not-allowed"
-                          }`}
-                          title={
-                            gift.selected
-                              ? "Desvincular presente"
-                              : "Presente não vinculado"
-                          }
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            className="w-5 h-5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM4 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 10.374 21c-2.331 0-4.512-.645-6.374-1.766Z"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <GiftsList
+        gifts={gifts}
+        guestMap={guestMap}
+        theme={theme}
+        onEditGift={openEditModal}
+        onDeleteGift={openDeleteModal}
+        onUnlinkGift={openUnlinkModal}
+      />
     </div>
   );
 };
