@@ -94,6 +94,21 @@ export default function GiftsList({
           <tbody>
             {gifts
               .filter((gift) => gift.active !== false)
+              .sort((a, b) => {
+                // Primeiro, verifica se algum título começa com número
+                const aStartsWithNumber = /^\d/.test(a.title);
+                const bStartsWithNumber = /^\d/.test(b.title);
+
+                // Se um começa com número e outro não, coloca o número por último
+                if (aStartsWithNumber && !bStartsWithNumber) return 1;
+                if (!aStartsWithNumber && bStartsWithNumber) return -1;
+
+                // Caso contrário, ordenação alfabética normal
+                return a.title.localeCompare(b.title, 'pt-BR', { 
+                  sensitivity: 'base',
+                  numeric: true
+                });
+              })
               .map((gift) => {
                 const guest = gift.guestId ? guestMap[gift.guestId] : null;
                 return (

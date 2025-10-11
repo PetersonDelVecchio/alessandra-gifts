@@ -229,7 +229,9 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
             </tr>
           </thead>
           <tbody>
-            {guests.map((guest) => {
+            {guests
+              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+              .map((guest) => {
               let giftTitle = "-";
               let giftUrl = "";
               if (guest.giftId) {
