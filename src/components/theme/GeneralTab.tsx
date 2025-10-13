@@ -4,7 +4,9 @@ import type { Theme } from "../../pages/ThemePage";
 
 type GeneralTabProps = {
   theme: Theme;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onChange: (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => void;
 };
 
 export default function GeneralTab({ theme, onChange }: GeneralTabProps) {
@@ -153,9 +155,7 @@ export default function GeneralTab({ theme, onChange }: GeneralTabProps) {
               <option value="'Roboto', sans-serif">Roboto</option>
               <option value="'Parisienne', cursive">Parisienne</option>
               <option value="'Arial', sans-serif">Arial</option>
-              <option value="'Times New Roman', serif">
-                Times New Roman
-              </option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
             </select>
           </label>
         </div>
@@ -188,13 +188,12 @@ export default function GeneralTab({ theme, onChange }: GeneralTabProps) {
             </h3>
 
             <p className="mb-3">
-              Este é um exemplo de como o texto aparece no fundo da
-              aplicação.
+              Este é um exemplo de como o texto aparece no fundo da aplicação.
             </p>
 
             <p className="mb-3">
-              Aqui você pode visualizar o contraste entre a cor de fundo e
-              a cor do texto escolhidas.
+              Aqui você pode visualizar o contraste entre a cor de fundo e a cor
+              do texto escolhidas.
             </p>
 
             <div className="bg-white bg-opacity-10 rounded p-3 mb-3">
@@ -244,12 +243,28 @@ export default function GeneralTab({ theme, onChange }: GeneralTabProps) {
             style={{
               background: theme.logoutButtonColor,
               color: theme.logoutButtonTextColor,
-              fontFamily:
-                theme.logoutButtonFontFamily || theme.titleFontFamily,
+              fontFamily: theme.logoutButtonFontFamily || theme.titleFontFamily,
+              border: `1px solid ${
+                theme?.logoutButtonColor || theme?.navBarColor || "#333"
+              }`,
             }}
-            className="px-4 py-2 rounded-lg shadow mt-6 transition-colors duration-300 hover:opacity-90"
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2 shadow-md `}
           >
-            Sair
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              className="w-4 h-4"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"
+              />
+            </svg>
+            <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
       </div>

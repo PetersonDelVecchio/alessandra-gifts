@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useTheme } from "../hooks/useTheme";
 
 type Gift = {
@@ -98,7 +98,6 @@ export default function GiftConfirmationModal({
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2"
             style={{
               borderColor: theme?.giftBorderColor || "#d1d5db",
-              focusRingColor: theme?.giftBorderColor || "#ec4899",
             }}
           >
             <option value="">Selecione uma opção</option>
