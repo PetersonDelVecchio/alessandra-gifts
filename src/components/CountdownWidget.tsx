@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { useTheme } from "../hooks/useTheme";
 
 dayjs.extend(duration);
 dayjs.extend(customParseFormat);
@@ -20,22 +21,29 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
   className = "",
   style = {},
 }) => {
-  const [timeLeft, setTimeLeft] = useState<string>("");
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isFinished: false,
+  });
+  const { theme } = useTheme();
 
   useEffect(() => {
     const updateCountdown = () => {
       const now = dayjs();
-      
+
       // Tentar diferentes formatos de data
       let event;
       const dateFormats = [
-        "DD/MM/YYYY HH:mm",  // Formato brasileiro
-        "MM/DD/YYYY HH:mm",  // Formato americano
-        "YYYY-MM-DD HH:mm",  // Formato ISO
+        "DD/MM/YYYY HH:mm", // Formato brasileiro
+        "MM/DD/YYYY HH:mm", // Formato americano
+        "YYYY-MM-DD HH:mm", // Formato ISO
       ];
-      
+
       const eventDateTime = `${eventDate} ${eventHour}`;
-      
+
       // Tentar cada formato até encontrar um válido
       for (const format of dateFormats) {
         event = dayjs(eventDateTime, format);
@@ -43,17 +51,13 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
           break;
         }
       }
-      
+
       // Se nenhum formato funcionou, tentar parsing automático
       if (!event || !event.isValid()) {
         event = dayjs(eventDateTime);
       }
-      
-      console.log('Data do evento:', event.format('DD/MM/YYYY HH:mm'));
-      console.log('Data atual:', now.format('DD/MM/YYYY HH:mm'));
-      
+
       const diff = event.diff(now);
-      console.log('Diferença em ms:', diff);
 
       if (diff > 0) {
         const d = dayjs.duration(diff);
@@ -61,10 +65,22 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
         const hours = d.hours();
         const minutes = d.minutes();
         const seconds = d.seconds();
-        
-        setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+
+        setTimeLeft({
+          days,
+          hours,
+          minutes,
+          seconds,
+          isFinished: false,
+        });
       } else {
-        setTimeLeft("A festa já começou!");
+        setTimeLeft({
+          days: 0,
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
+          isFinished: true,
+        });
       }
     };
 
@@ -78,27 +94,86 @@ const CountdownWidget: React.FC<CountdownWidgetProps> = ({
     return () => clearInterval(interval);
   }, [eventDate, eventHour]);
 
-  return (
-    <div className={`text-center ${className}`} style={style}>
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth="1.5"
-          stroke="currentColor"
-          className="w-5 h-5"
+  if (timeLeft.isFinished) {
+    return (
+      <div
+        className={`flex flex-col items-center w-full  ${className}`}
+        style={style}
+      >
+        {/* Título quando festa já começou */}
+        <h3
+          className="text-lg sm:text-xl font-semibold mb-2 sm:mb-4 shadow-md p-4 rounded-lg"
+          style={{ color: theme?.navBarColor || "#000" }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-          />
-        </svg>
-        <span className="text-lg font-bold">
-          {timeLeft.includes("começou") ? "🎉 " : "⏰ "}
-          {timeLeft.includes("começou") ? timeLeft : `Faltam: ${timeLeft}`}
-        </span>
+          🎉 A festa já começou!
+        </h3>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex flex-col items-center w-full ${className}`}
+      style={style}
+    >
+      {/* Título "Faltam:" */}
+      <h3
+        className="text-lg sm:text-xl font-semibold mb-2 sm:mb-4"
+        style={{ color: theme?.navBarColor || "#000" }}
+      >
+        Faltam:
+      </h3>
+
+      {/* Contador */}
+      <div className="grid grid-flow-col gap-3 sm:gap-5 text-center auto-cols-max">
+        <div className="flex flex-col">
+          <span className="countdown font-mono text-3xl sm:text-5xl">
+            <span
+              style={{ "--value": timeLeft.days } as React.CSSProperties}
+              aria-live="polite"
+              aria-label={`${timeLeft.days} days`}
+            >
+              {timeLeft.days}
+            </span>
+          </span>
+          <span className="text-xs sm:text-sm">dias</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="countdown font-mono text-3xl sm:text-5xl">
+            <span
+              style={{ "--value": timeLeft.hours } as React.CSSProperties}
+              aria-live="polite"
+              aria-label={`${timeLeft.hours} hours`}
+            >
+              {timeLeft.hours}
+            </span>
+          </span>
+          <span className="text-xs sm:text-sm">horas</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="countdown font-mono text-3xl sm:text-5xl">
+            <span
+              style={{ "--value": timeLeft.minutes } as React.CSSProperties}
+              aria-live="polite"
+              aria-label={`${timeLeft.minutes} minutes`}
+            >
+              {timeLeft.minutes}
+            </span>
+          </span>
+          <span className="text-xs sm:text-sm">min</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="countdown font-mono text-3xl sm:text-5xl">
+            <span
+              style={{ "--value": timeLeft.seconds } as React.CSSProperties}
+              aria-live="polite"
+              aria-label={`${timeLeft.seconds} seconds`}
+            >
+              {timeLeft.seconds}
+            </span>
+          </span>
+          <span className="text-xs sm:text-sm">seg</span>
+        </div>
       </div>
     </div>
   );
