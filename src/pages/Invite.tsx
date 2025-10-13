@@ -5,13 +5,20 @@ import { useTheme } from "../hooks/useTheme";
 import { useNavigate } from "react-router-dom";
 import Loading from "../components/Loading";
 import CountdownWidget from "../components/CountdownWidget";
+import LogoutButton from "../components/LogoutButton";
+import PixModal from "../components/GiftPix";
 
 type Gift = {
   id: string;
   title: string;
-  url: string;
   description: string;
-  value?: number;
+  selected: boolean;
+  selectedBy?: string;
+  selectedPhone?: string;
+  guestId?: string | null;
+  active?: boolean;
+  valor?: string;
+  url?: string;
 };
 
 // Função atualizada para suportar quebras de linha, negrito e itálico
@@ -82,6 +89,7 @@ const processFormattedLine = (line: string) => {
 const Invite: React.FC = () => {
   const [gift, setGift] = useState<Gift | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPixModal, setShowPixModal] = useState(false);
   const { theme, loading: themeLoading } = useTheme();
   const navigate = useNavigate();
 
@@ -128,7 +136,12 @@ const Invite: React.FC = () => {
             url: giftData.url,
             title: giftData.title,
             description: giftData.description,
-            value: giftData.value,
+            valor: giftData.valor,
+            selected: true, // Adicionado - sempre true aqui pois o presente foi selecionado
+            selectedBy: giftData.selectedBy,
+            selectedPhone: giftData.selectedPhone,
+            guestId: giftData.guestId,
+            active: giftData.active,
           });
         }
       }
@@ -138,15 +151,18 @@ const Invite: React.FC = () => {
     fetchGuestAndGift();
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/login";
-  };
-
   const whatsappNumber = theme?.whatsapp
     ? theme.whatsapp.replace(/\D/g, "")
     : "";
   const whatsappLink = `https://wa.me/55${whatsappNumber}?text=Olá!%20Gostaria%20de%20confirmar%20meu%20presente%20para%20a%20Alessandra.`;
+
+  const handleOpenPixModal = () => {
+    setShowPixModal(true);
+  };
+
+  const handleClosePixModal = () => {
+    setShowPixModal(false);
+  };
 
   if (themeLoading) return <Loading message="Carregando aplicação..." />;
   if (loading) return <Loading message="Carregando convite..." />;
@@ -161,17 +177,7 @@ const Invite: React.FC = () => {
       }}
     >
       {/* Botão Sair */}
-      <button
-        onClick={handleLogout}
-        className="absolute top-6 right-6 font-semibold px-4 py-2 rounded-xl shadow-md transition-colors duration-300"
-        style={{
-          background: theme?.logoutButtonColor,
-          color: theme?.logoutButtonTextColor,
-          border: `2px solid ${theme?.logoutButtonColor || "#e91e63"}`,
-        }}
-      >
-        Sair
-      </button>
+      <LogoutButton className="flex justify-end mt-4 me-5" />
 
       {/* Navbar/Título */}
       <div
@@ -252,10 +258,8 @@ const Invite: React.FC = () => {
                 <span className="font-bold text-lg">{gift?.title}</span>
               )}
               <p className="mt-2">{gift?.description}</p>
-              {gift?.value && (
-                <p className="mt-2 font-semibold">
-                  Valor: R$ {gift.value.toFixed(2)}
-                </p>
+              {gift?.valor && (
+                <p className="mt-2 font-semibold">Valor: R$ {gift.valor}</p>
               )}
             </div>
           </div>
@@ -295,15 +299,15 @@ const Invite: React.FC = () => {
             </div>
           </div>
 
-          {/* Botão WhatsApp - só aparece se tiver número */}
-          {theme?.whatsapp && (
+          {/* Botões PIX e WhatsApp */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            {/* Botão PIX - usando cores corretas do tema */}
             <button
-              onClick={() => window.open(whatsappLink, "_blank")}
-              className="px-4 py-2 rounded-lg shadow mt-4 flex items-center justify-center gap-2 transition-colors duration-300"
+              onClick={handleOpenPixModal}
+              className="flex-1 px-4 py-3 rounded-lg shadow flex items-center justify-center gap-2 transition-all duration-300 hover:brightness-90"
               style={{
-                background: theme?.giftButtonColor,
-                color: theme?.giftTextButtonColor,
-                fontFamily: theme?.giftFontFamily,
+                background: theme?.logoutButtonColor || "#00C9A7",
+                color: theme?.logoutButtonTextColor || "#ffffff",
               }}
             >
               <svg
@@ -313,13 +317,51 @@ const Invite: React.FC = () => {
                 fill="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path d="M12.004 2.003c-5.523 0-10 4.477-10 10 0 1.768.466 3.484 1.352 4.995l-1.432 5.243 5.377-1.411c1.463.803 3.117 1.173 4.703 1.173 5.523 0 10-4.477 10-10s-4.477-10-10-10zm0 18.001c-1.463 0-2.892-.369-4.141-1.067l-.297-.17-3.191.838.852-3.122-.193-.321c-.813-1.353-1.241-2.899-1.241-4.458 0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8zm4.406-6.309c-.242-.121-1.434-.707-1.655-.788-.221-.081-.382-.121-.543.121-.161.242-.621.788-.761.95-.141.161-.281.181-.523.06-.242-.121-1.022-.377-1.947-1.201-.72-.642-1.207-1.435-1.35-1.677-.141-.242-.015-.373.106-.494.109-.108.242-.281.363-.421.121-.141.161-.242.242-.403.081-.161.04-.302-.02-.423-.06-.121-.543-1.312-.744-1.797-.196-.472-.396-.408-.543-.416-.141-.008-.302-.01-.463-.01-.161 0-.423.06-.645.302-.221.242-.843.825-.843 2.008 0 1.183.863 2.325.983 2.487.121.161 1.697 2.594 4.122 3.527.577.198 1.027.316 1.378.404.578.147 1.104.126 1.52.077.464-.055 1.434-.586 1.637-1.152.202-.566.202-1.051.141-1.152-.06-.101-.221-.161-.463-.282z" />
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
               </svg>
-              Falar no WhatsApp
+              <span className="font-medium">PIX</span>
             </button>
-          )}
+
+            {/* Botão WhatsApp - só aparece se tiver número */}
+            {theme?.whatsapp && (
+              <button
+                onClick={() => window.open(whatsappLink, "_blank")}
+                className="flex-1 px-4 py-3 rounded-lg shadow flex items-center justify-center gap-2 transition-all duration-300 hover:brightness-90"
+                style={{
+                  background: theme?.giftButtonColor || "#25D366",
+                  color: theme?.giftTextButtonColor || "#ffffff",
+                  fontFamily: theme?.giftFontFamily,
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12.004 2.003c-5.523 0-10 4.477-10 10 0 1.768.466 3.484 1.352 4.995l-1.432 5.243 5.377-1.411c1.463.803 3.117 1.173 4.703 1.173 5.523 0 10-4.477 10-10s-4.477-10-10-10zm0 18.001c-1.463 0-2.892-.369-4.141-1.067l-.297-.17-3.191.838.852-3.122-.193-.321c-.813-1.353-1.241-2.899-1.241-4.458 0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8zm4.406-6.309c-.242-.121-1.434-.707-1.655-.788-.221-.081-.382-.121-.543.121-.161.242-.621.788-.761.95-.141.161-.281.181-.523.06-.242-.121-1.022-.377-1.947-1.201-.72-.642-1.207-1.435-1.35-1.677-.141-.242-.015-.373.106-.494.109-.108.242-.281.363-.421.121-.141.161-.242.242-.403.081-.161.04-.302-.02-.423-.06-.121-.543-1.312-.744-1.797-.196-.472-.396-.408-.543-.416-.141-.008-.302-.01-.463-.01-.161 0-.423.06-.645.302-.221.242-.843.825-.843 2.008 0 1.183.863 2.325.983 2.487.121.161 1.697 2.594 4.122 3.527.577.198 1.027.316 1.378.404.578.147 1.104.126 1.52.077.464-.055 1.434-.586 1.637-1.152.202-.566.202-1.051.141-1.152-.06-.101-.221-.161-.463-.282z" />
+                </svg>
+                <span className="font-medium">WhatsApp</span>
+              </button>
+            )}
+          </div>
+
+          {/* Texto explicativo */}
+          <div className="text-center text-sm opacity-75 mt-2">
+            <p>💰 Use o PIX para contribuir ou confirmar pagamento</p>
+            <p>💬 Use o WhatsApp para tirar dúvidas</p>
+          </div>
         </div>
       </div>
+
+      {/* Modal do PIX */}
+      <PixModal
+        isOpen={showPixModal}
+        onClose={handleClosePixModal}
+        gift={gift}
+        onGoToInvite={handleClosePixModal}
+      />
     </div>
   );
 };

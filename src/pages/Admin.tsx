@@ -13,6 +13,7 @@ import GiftsList from "../components/admin/GiftsList";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
+import LogoutButton from "../components/LogoutButton";
 
 type Guest = {
   id: string;
@@ -209,12 +210,10 @@ const Admin: React.FC = () => {
   // Estatísticas
   const totalGuests = guests.length;
   const confirmedGuests = guests.filter((g) => g.giftSelected).length;
-
-  // Logout
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/"; // ou "/login"
-  };
+  const totalGifts = gifts.filter((gift) => gift.active !== false).length;
+  const confirmedGifts = gifts.filter(
+    (gift) => gift.active !== false && gift.selected === true
+  ).length;
 
   const handleGiftCreated = () => {
     setIsModalOpen(false);
@@ -232,24 +231,12 @@ const Admin: React.FC = () => {
     return map;
   }, [guests]);
 
-
   if (loading) return <p className="text-center mt-10">Carregando...</p>;
 
   return (
     <div className="p-6 relative">
       {/* Botão logout */}
-      <button
-        onClick={handleLogout}
-        style={{
-          borderColor: theme?.logoutButtonColor || "#d1d5db",
-          background: theme?.logoutButtonColor || "#ffffff",
-          color: theme?.logoutButtonTextColor || "#db2777",
-          fontFamily: theme?.logoutButtonFontFamily || "inherit",
-        }}
-        className="absolute top-6 right-6 bg-white border-2 border-pink-500 text-pink-500 font-semibold px-4 py-2 rounded-xl shadow-md hover:bg-pink-50 transition-colors duration-300"
-      >
-        Sair
-      </button>
+      <LogoutButton className="flex justify-end mt-4 me-5" />
 
       <button
         className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition"
@@ -264,7 +251,7 @@ const Admin: React.FC = () => {
       </h1>
 
       {/* Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Pessoas Registradas</h3>
           <p
@@ -277,6 +264,14 @@ const Admin: React.FC = () => {
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Pessoas Confirmadas</h3>
           <p className="text-2xl font-bold text-green-600">{confirmedGuests}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded-lg text-center">
+          <h3 className="text-lg font-semibold">Quantidade de Presentes</h3>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-2xl font-bold text-green-600">{confirmedGifts}</p>
+            <p className="text-2xl font-bold text-gray-600">/</p>
+            <p className="text-2xl font-bold text-blue-600">{totalGifts}</p>
+          </div>
         </div>
         <div className="bg-white shadow p-4 rounded-lg text-center">
           <h3 className="text-lg font-semibold">Valor Total dos Presentes</h3>

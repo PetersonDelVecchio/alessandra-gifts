@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
 import Loading from "../components/Loading";
+import LogoutButton from "../components/LogoutButton";
 import GiftConfirmationModal from "../components/GiftConfirmation";
 import PixModal from "../components/GiftPix";
 
@@ -24,32 +25,52 @@ type Gift = {
 
 const Guest: React.FC = () => {
   const [gifts, setGifts] = useState<Gift[]>([]);
-  const [giftId, setGiftId] = useState<string | null>(null);
   const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [showPixModal, setShowPixModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { theme, loading: themeLoading } = useTheme();
   const { showToast } = useToast();
 
   const giftsCollection = collection(db, "gifts");
 
+  // Verificar se o usuário já confirmou presente
   useEffect(() => {
-    // Busca o guestId e verifica se já escolheu presente
-    const guestId = localStorage.getItem("guestId");
-    if (guestId) {
-      import("firebase/firestore").then(({ doc, getDoc }) => {
-        const guestRef = doc(db, "guests", guestId);
-        getDoc(guestRef).then((snap) => {
-          const data = snap.data();
-          if (data && data.giftId) {
-            setGiftId(data.giftId);
-          }
-        });
-      });
-    }
+    const checkGuestStatus = async () => {
+      const guestId = localStorage.getItem("guestId");
+      if (!guestId) {
+        navigate("/login");
+        return;
+      }
 
-    // Listener em tempo real para presentes
+      try {
+        const guestRef = doc(db, "guests", guestId);
+        const guestSnap = await getDoc(guestRef);
+        
+        if (guestSnap.exists()) {
+          const guestData = guestSnap.data();
+          
+          // Se já confirmou presente, redireciona para invite
+          if (guestData.giftSelected && guestData.giftId) {
+            navigate("/invite");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao verificar status do convidado:", error);
+      }
+      
+      setLoading(false);
+    };
+
+    checkGuestStatus();
+  }, [navigate]);
+
+  // Listener em tempo real para presentes
+  useEffect(() => {
+    if (loading) return; // Só inicia o listener após verificar status
+
     const unsubscribe = onSnapshot(giftsCollection, (snapshot) => {
       const giftsList: Gift[] = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -67,13 +88,7 @@ const Guest: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, [giftsCollection]);
-
-  useEffect(() => {
-    if (giftId) {
-      navigate("/invite");
-    }
-  }, [giftId, navigate]);
+  }, [giftsCollection, loading]);
 
   const handleSelect = (gift: Gift) => {
     setSelectedGift(gift);
@@ -85,7 +100,7 @@ const Guest: React.FC = () => {
 
     const guestId = localStorage.getItem("guestId");
     if (!guestId) {
-      alert("Erro: guestId não encontrado.");
+      showToast("Erro: usuário não encontrado.");
       return;
     }
 
@@ -106,16 +121,17 @@ const Guest: React.FC = () => {
         confirmedAt: serverTimestamp(),
       });
 
-      showToast("Presente confirmado!");
+      showToast("Presente confirmado com sucesso!");
       setShowConfirmationModal(false);
 
       if (method === "pix") {
+        // Mostra modal do PIX
         setShowPixModal(true);
       } else {
-        // Método "levar" - vai direto para invite
+        // Método "levar" - vai direto para invite após um delay
         setTimeout(() => {
           navigate("/invite");
-        }, 800);
+        }, 1500);
       }
     } catch (error) {
       console.error("Erro ao confirmar presente:", error);
@@ -134,12 +150,7 @@ const Guest: React.FC = () => {
     setSelectedGift(null);
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/login";
-  };
-
-  if (themeLoading) return <Loading message="Carregando aplicação..." />;
+  if (themeLoading || loading) return <Loading message="Carregando..." />;
 
   return (
     <div
@@ -150,22 +161,12 @@ const Guest: React.FC = () => {
         minHeight: "100vh",
       }}
     >
-      {/* Botão Sair */}
-      <button
-        onClick={handleLogout}
-        className="absolute top-6 right-6 font-semibold px-4 py-2 rounded-xl shadow-md transition-colors duration-300"
-        style={{
-          background: theme?.logoutButtonColor,
-          color: theme?.logoutButtonTextColor,
-          border: `2px solid ${theme?.logoutButtonColor || "#e91e63"}`,
-        }}
-      >
-        Sair
-      </button>
+      {/* Botão Sair no topo centralizado */}
+      <LogoutButton className="flex justify-end mt-4 me-5" />
 
       {/* Navbar/Título */}
       <div
-        className="rounded-lg px-4 py-3 mb-2 shadow text-center"
+        className="rounded-lg px-4 py-3 shadow text-center mb-6"
         style={{
           background: theme?.navBarColor,
           color: theme?.navBarText,
@@ -181,7 +182,7 @@ const Guest: React.FC = () => {
 
       {/* Cards */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))" }}
       >
         {gifts
@@ -189,6 +190,7 @@ const Guest: React.FC = () => {
             const isActive = gift.active !== false;
             return isActive && (theme?.listSelected ? true : !gift.selected);
           })
+          .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }))
           .map((gift) => (
             <div
               key={gift.id}
