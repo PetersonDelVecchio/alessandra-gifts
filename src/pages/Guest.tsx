@@ -1,16 +1,13 @@
-import React, { useEffect, useState, useCallback } from "react";
+// src/pages/Guest.tsx - LÓGICA DE RESERVA COM TEMPO ABSOLUTO
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
-  onSnapshot,
-  updateDoc,
+  getDocs,
   doc,
   serverTimestamp,
   getDoc,
   runTransaction,
-  query,
-  where,
-  getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useTheme } from "../hooks/useTheme";
@@ -21,7 +18,7 @@ import GiftConfirmationModal from "../components/GiftConfirmation";
 import PixModal from "../components/GiftPix";
 import { Timestamp } from "firebase/firestore";
 
-// Tipos corrigidos
+// Tipos
 type Gift = {
   id: string;
   title: string;
@@ -33,7 +30,6 @@ type Gift = {
   active?: boolean;
   valor?: string;
   url?: string;
-  // Campos de reserva com tipos corretos
   reservedBy?: string | null;
   reservedAt?: Timestamp | Date | null;
   reservationExpiry?: Timestamp | Date | null;
@@ -47,31 +43,6 @@ const getTimeInMillis = (timestamp: Timestamp | Date | null): number => {
   return 0;
 };
 
-// Função para verificar se uma reserva expirou (baseada no tempo local)
-const isReservationExpired = (gift: Gift): boolean => {
-  if (!gift.reservedBy || !gift.reservedAt) return false;
-
-  const now = Date.now();
-  const reservedAtTime = getTimeInMillis(gift.reservedAt);
-  const twoMinutesInMs = 2 * 60 * 1000; // 2 minutos
-
-  return now - reservedAtTime > twoMinutesInMs;
-};
-
-// Função para verificar se um presente está realmente reservado por outro usuário
-const isReservedByOtherUser = (
-  gift: Gift,
-  currentGuestId: string | null
-): boolean => {
-  if (!gift.reservedBy || !currentGuestId) return false;
-  if (gift.reservedBy === currentGuestId) return false; // Reservado pelo usuário atual
-
-  // Se expirou, não está mais reservado
-  if (isReservationExpired(gift)) return false;
-
-  return true;
-};
-
 const Guest: React.FC = () => {
   const [gifts, setGifts] = useState<Gift[]>([]);
   const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
@@ -79,56 +50,14 @@ const Guest: React.FC = () => {
   const [showPixModal, setShowPixModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reservingGift, setReservingGift] = useState<string | null>(null);
+  
   const navigate = useNavigate();
   const { theme, loading: themeLoading } = useTheme();
   const { showToast } = useToast();
 
-  const giftsCollection = collection(db, "gifts");
-
-  // Função para limpar reservas expiradas no banco
-  const cleanExpiredReservations = useCallback(async () => {
-    try {
-      const snapshot = await getDocs(
-        query(giftsCollection, where("reservedBy", "!=", null))
-      );
-
-      const expiredGifts = snapshot.docs.filter((docSnap) => {
-        const gift = { id: docSnap.id, ...docSnap.data() } as Gift;
-        return isReservationExpired(gift);
-      });
-
-      if (expiredGifts.length > 0) {
-        const promises = expiredGifts.map(async (docSnap) => {
-          const giftRef = doc(db, "gifts", docSnap.id);
-          await updateDoc(giftRef, {
-            reservedBy: null,
-            reservedAt: null,
-            reservationExpiry: null,
-          });
-        });
-
-        await Promise.all(promises);
-      }
-    } catch (error) {
-      // Silencioso
-      console.error("Erro ao limpar reservas expiradas:", error);
-    }
-  }, [giftsCollection]);
-
-  // Hook para forçar re-render a cada 5 segundos (para atualizar expiração em tempo real)
-  const [, setForceUpdate] = useState(0);
-
+  // ✅ CARREGAMENTO ÚNICO: Só carrega uma vez ao inicializar
   useEffect(() => {
-    const interval = setInterval(() => {
-      setForceUpdate((prev) => prev + 1);
-    }, 5000); // Atualiza a cada 5 segundos
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Verificar se o usuário já confirmou presente
-  useEffect(() => {
-    const checkGuestStatus = async () => {
+    const loadInitialData = async () => {
       const guestId = localStorage.getItem("guestId");
       if (!guestId) {
         navigate("/login");
@@ -136,44 +65,22 @@ const Guest: React.FC = () => {
       }
 
       try {
+        // Verifica se usuário já confirmou presente
         const guestRef = doc(db, "guests", guestId);
         const guestSnap = await getDoc(guestRef);
 
         if (guestSnap.exists()) {
           const guestData = guestSnap.data();
-
           if (guestData.giftSelected && guestData.giftId) {
             navigate("/invite");
             return;
           }
         }
-      } catch (error) {
-        // Silencioso
-        console.error("Erro ao verificar status do convidado:", error);
-      }
 
-      setLoading(false);
-    };
-
-    checkGuestStatus();
-  }, [navigate]);
-
-  // Listener em tempo real para presentes com limpeza periódica
-  useEffect(() => {
-    if (loading) return;
-
-    // Limpa reservas expiradas imediatamente
-    cleanExpiredReservations();
-
-    // Configura limpeza periódica (a cada 30 segundos)
-    const cleanupInterval = setInterval(() => {
-      cleanExpiredReservations();
-    }, 30000);
-
-    const unsubscribe = onSnapshot(
-      giftsCollection,
-      (snapshot) => {
-        const giftsList: Gift[] = snapshot.docs.map((docSnap) => {
+        // ✅ CARREGA PRESENTES UMA VEZ SÓ (sem listener)
+        const giftsSnapshot = await getDocs(collection(db, "gifts"));
+        
+        const giftsList: Gift[] = giftsSnapshot.docs.map((docSnap) => {
           const data = docSnap.data();
           return {
             id: docSnap.id,
@@ -193,21 +100,20 @@ const Guest: React.FC = () => {
         });
 
         setGifts(giftsList);
-      },
-      (error) => {
-        // Silencioso
-        console.error("Erro ao carregar presentes:", error);
+        
+      } catch (error) {
+        console.error("❌ Erro ao carregar dados:", error);
+        showToast("Erro ao carregar presentes");
+      } finally {
+        setLoading(false);
       }
-    );
-
-    return () => {
-      clearInterval(cleanupInterval);
-      unsubscribe();
     };
-  }, [loading, cleanExpiredReservations, giftsCollection]);
 
-  // Função para reservar presente
-  const reserveGift = async (gift: Gift): Promise<boolean> => {
+    loadInitialData();
+  }, [navigate, showToast]);
+
+  // ✅ NOVA LÓGICA: Verificar se presente está livre baseado no tempo absoluto
+  const checkAndReserveGift = async (gift: Gift): Promise<boolean> => {
     const guestId = localStorage.getItem("guestId");
     if (!guestId) {
       showToast("Erro: usuário não encontrado.");
@@ -217,7 +123,7 @@ const Guest: React.FC = () => {
     setReservingGift(gift.id);
 
     try {
-      await runTransaction(db, async (transaction) => {
+      const success = await runTransaction(db, async (transaction) => {
         const giftRef = doc(db, "gifts", gift.id);
         const giftDoc = await transaction.get(giftRef);
 
@@ -225,38 +131,57 @@ const Guest: React.FC = () => {
           throw new Error("Presente não encontrado");
         }
 
-        const giftData = giftDoc.data();
-        const currentGift = { id: gift.id, ...giftData } as Gift;
+        const currentData = giftDoc.data() as Gift;
 
-        // Verifica se já foi selecionado definitivamente
-        if (giftData.selected === true) {
+        // Verifica se foi selecionado definitivamente
+        if (currentData.selected === true) {
           throw new Error("ALREADY_SELECTED");
         }
 
-        // Verifica se está reservado por outra pessoa (usando lógica local)
-        if (isReservedByOtherUser(currentGift, guestId)) {
-          throw new Error("RESERVED_BY_OTHER");
+        // ✅ NOVA LÓGICA: Verifica reserva baseada no tempo absoluto
+        if (currentData.reservedBy && currentData.reservationExpiry) {
+          const now = new Date();
+          let expiryTime: Date;
+
+          // Converte o tempo de expiração para Date
+          if (currentData.reservationExpiry instanceof Date) {
+            expiryTime = currentData.reservationExpiry;
+          } else if ('toDate' in currentData.reservationExpiry) {
+            expiryTime = currentData.reservationExpiry.toDate();
+          } else {
+            // Fallback para timestamp
+            expiryTime = new Date(currentData.reservationExpiry);
+          }
+
+          // ✅ VERIFICAÇÃO TEMPORAL: Se ainda não expirou e não é o mesmo usuário
+          if (now < expiryTime && currentData.reservedBy !== guestId) {
+            const minutosRestantes = Math.ceil((expiryTime.getTime() - now.getTime()) / 60000);
+            throw new Error(`RESERVED_BY_OTHER:${minutosRestantes}`);
+          }
         }
 
-        // Cria nova reserva
+        // ✅ CRIA NOVA RESERVA: Com tempo de expiração absoluto
+        const now = new Date();
+        const expiryTime = new Date(now.getTime() + 60000); // 1 minuto a partir de agora
+
         transaction.update(giftRef, {
           reservedBy: guestId,
-          reservedAt: serverTimestamp(),
-          reservationExpiry: new Date(Date.now() + 120000), // 2 minutos
+          reservedAt: now,
+          reservationExpiry: expiryTime, // ✅ TEMPO ABSOLUTO quando vai expirar
         });
+
+        return true;
       });
 
-      return true;
+      return success;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Erro desconhecido";
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
 
       if (errorMessage === "ALREADY_SELECTED") {
         showToast("Este presente já foi escolhido por outro convidado.");
-      } else if (errorMessage === "RESERVED_BY_OTHER") {
-        showToast(
-          "Outro convidado está vendo este presente agora. Tente novamente em alguns minutos."
-        );
+      } else if (errorMessage.startsWith("RESERVED_BY_OTHER:")) {
+        const minutos = errorMessage.split(":")[1];
+        showToast(`Alguém já está vendo este presente. Tente novamente em ${minutos} minuto(s).`);
       } else {
         showToast("Erro ao selecionar presente. Tente novamente.");
       }
@@ -267,29 +192,16 @@ const Guest: React.FC = () => {
     }
   };
 
-  // Função para liberar reserva
-  const releaseReservation = async (giftId: string) => {
-    try {
-      const giftRef = doc(db, "gifts", giftId);
-      await updateDoc(giftRef, {
-        reservedBy: null,
-        reservedAt: null,
-        reservationExpiry: null,
-      });
-    } catch (error) {
-      // Silencioso
-      console.error("Erro ao liberar reserva:", error);
-    }
+  // ✅ ADICIONAR: Função updateLocalGift que estava faltando
+  const updateLocalGift = (giftId: string, updates: Partial<Gift>) => {
+    setGifts(currentGifts => 
+      currentGifts.map(gift => 
+        gift.id === giftId ? { ...gift, ...updates } : gift
+      )
+    );
   };
 
-  const handleSelect = async (gift: Gift) => {
-    const success = await reserveGift(gift);
-    if (success) {
-      setSelectedGift(gift);
-      setShowConfirmationModal(true);
-    }
-  };
-
+  // ✅ MODIFICAÇÃO MÍNIMA: handleConfirmGift verifica expiração absoluta
   const handleConfirmGift = async (method: "levar" | "pix") => {
     if (!selectedGift) return;
 
@@ -315,10 +227,22 @@ const Guest: React.FC = () => {
           throw new Error("RESERVATION_EXPIRED");
         }
 
-        // Verifica se a reserva não expirou (dupla verificação)
-        const currentGift = { id: selectedGift.id, ...giftData } as Gift;
-        if (isReservationExpired(currentGift)) {
-          throw new Error("RESERVATION_EXPIRED");
+        // ✅ VERIFICA TEMPO ABSOLUTO: Se a reserva ainda é válida
+        if (giftData.reservationExpiry) {
+          const now = new Date();
+          let expiryTime: Date;
+
+          if (giftData.reservationExpiry instanceof Date) {
+            expiryTime = giftData.reservationExpiry;
+          } else if ('toDate' in giftData.reservationExpiry) {
+            expiryTime = giftData.reservationExpiry.toDate();
+          } else {
+            expiryTime = new Date(giftData.reservationExpiry);
+          }
+
+          if (now >= expiryTime) {
+            throw new Error("RESERVATION_EXPIRED");
+          }
         }
 
         // Confirma seleção definitiva
@@ -340,6 +264,15 @@ const Guest: React.FC = () => {
         });
       });
 
+      // ✅ ATUALIZA LOCAL: Marca como selecionado
+      updateLocalGift(selectedGift.id, {
+        selected: true,
+        guestId: guestId,
+        reservedBy: null,
+        reservedAt: null,
+        reservationExpiry: null
+      });
+
       showToast("Presente confirmado com sucesso!");
       setShowConfirmationModal(false);
 
@@ -351,11 +284,18 @@ const Guest: React.FC = () => {
         }, 1500);
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Erro desconhecido";
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
 
       if (errorMessage === "RESERVATION_EXPIRED") {
         showToast("Tempo esgotado. O presente voltou para a lista.");
+        
+        // ✅ LIMPA LOCAL: Remove reserva local
+        updateLocalGift(selectedGift.id, {
+          reservedBy: null,
+          reservedAt: null,
+          reservationExpiry: null
+        });
+        
         setShowConfirmationModal(false);
         setSelectedGift(null);
       } else {
@@ -364,19 +304,73 @@ const Guest: React.FC = () => {
     }
   };
 
-  const handleGoToInvite = () => {
-    setShowPixModal(false);
-    navigate("/invite");
+  const handleSelect = async (gift: Gift) => {
+    const success = await checkAndReserveGift(gift);
+    if (success) {
+      // ✅ ATUALIZA LOCAL: Com tempo de expiração correto
+      const guestId = localStorage.getItem("guestId");
+      const now = new Date();
+      const expiryTime = new Date(now.getTime() + 60000);
+
+      updateLocalGift(gift.id, {
+        reservedBy: guestId,
+        reservedAt: now,
+        reservationExpiry: expiryTime
+      });
+
+      setSelectedGift({
+        ...gift,
+        reservedBy: guestId,
+        reservedAt: now,
+        reservationExpiry: expiryTime
+      });
+      setShowConfirmationModal(true);
+    }
   };
 
-  const handleCloseModals = () => {
+  // ✅ CORRIGIR: handleCloseModals também usava updateLocalGift
+  const handleCloseModals = async () => {
     if (selectedGift?.id) {
-      releaseReservation(selectedGift.id);
+      // ✅ LIBERA NO BANCO: Só uma consulta para liberar
+      try {
+        const guestId = localStorage.getItem("guestId");
+        if (guestId) {
+          await runTransaction(db, async (transaction) => {
+            const giftRef = doc(db, "gifts", selectedGift.id);
+            const giftDoc = await transaction.get(giftRef);
+
+            if (giftDoc.exists()) {
+              const giftData = giftDoc.data();
+              if (giftData.reservedBy === guestId) {
+                transaction.update(giftRef, {
+                  reservedBy: null,
+                  reservedAt: null,
+                  reservationExpiry: null,
+                });
+
+                // ✅ ATUALIZA LOCAL: Remove reserva
+                updateLocalGift(selectedGift.id, {
+                  reservedBy: null,
+                  reservedAt: null,
+                  reservationExpiry: null
+                });
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao liberar reserva:", error);
+      }
     }
 
     setShowConfirmationModal(false);
     setShowPixModal(false);
     setSelectedGift(null);
+  };
+
+  const handleGoToInvite = () => {
+    setShowPixModal(false);
+    navigate("/invite");
   };
 
   if (themeLoading || loading) return <Loading message="Carregando..." />;
@@ -390,18 +384,14 @@ const Guest: React.FC = () => {
         minHeight: "100vh",
       }}
     >
-      {/* Botão Sair no topo centralizado */}
       <LogoutButton className="flex justify-end mt-4 me-5" />
 
-      {/* Navbar/Título */}
       <div
         className="rounded-lg px-4 py-3 shadow text-center mb-6"
         style={{
           background: theme?.navBarColor,
           color: theme?.navBarText,
-          boxShadow: theme?.navBarShadow
-            ? "0 3px 8px 0 rgba(0,0,0,0.35)"
-            : "none",
+          boxShadow: theme?.navBarShadow ? "0 3px 8px 0 rgba(0,0,0,0.35)" : "none",
           fontFamily: theme?.titleFontFamily,
           fontSize: 22,
         }}
@@ -409,7 +399,6 @@ const Guest: React.FC = () => {
         {theme?.titleListGift || "Lista de Presentes"}
       </div>
 
-      {/* Cards */}
       <div
         className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))" }}
@@ -419,14 +408,8 @@ const Guest: React.FC = () => {
             const isActive = gift.active !== false;
             return isActive && (theme?.listSelected ? true : !gift.selected);
           })
-          .sort((a, b) =>
-            a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" })
-          )
+          .sort((a, b) => a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" }))
           .map((gift) => {
-            const guestId = localStorage.getItem("guestId");
-
-            // Usa a nova lógica baseada em tempo local
-            const isReservedByOther = isReservedByOtherUser(gift, guestId);
             const isReserving = reservingGift === gift.id;
 
             return (
@@ -434,18 +417,17 @@ const Guest: React.FC = () => {
                 key={gift.id}
                 className="rounded-lg border p-4 flex flex-col"
                 style={{
-                  opacity: gift.selected ? 0.6 : isReservedByOther ? 0.7 : 1,
-                  background: isReservedByOther ? "#fef3c7" : theme?.giftBgColor,
+                  opacity: gift.selected ? 0.6 : 1,
+                  background: theme?.giftBgColor,
                   color: theme?.giftTextColor,
-                  borderColor: isReservedByOther ? "#f59e0b" : theme?.giftBorderColor,
-                  borderWidth: isReservedByOther ? 2 : 1,
+                  borderColor: theme?.giftBorderColor,
+                  borderWidth: 1,
                   borderStyle: "solid",
                   fontFamily: theme?.giftFontFamily,
                   height: "200px",
                   maxWidth: "350px",
                 }}
               >
-                {/* Título */}
                 <div
                   className="font-semibold mb-3 leading-tight flex-1"
                   style={{
@@ -460,24 +442,22 @@ const Guest: React.FC = () => {
                   {gift.title}
                 </div>
 
-                {/* Preço */}
                 <div className="font-extralight text-lg mb-3">
                   R$ {gift.valor}
                 </div>
 
-                {/* Botão */}
                 <div>
                   <button
-                    disabled={gift.selected || isReservedByOther || isReserving}
+                    disabled={gift.selected || isReserving}
                     style={{
                       background: gift.selected
                         ? "#ccc"
-                        : isReservedByOther || isReserving
+                        : isReserving
                         ? "#d97706"
                         : theme?.giftButtonColor,
                       color: gift.selected
                         ? "#666"
-                        : isReservedByOther || isReserving
+                        : isReserving
                         ? "#fff"
                         : theme?.giftTextButtonColor,
                       fontFamily: theme?.giftFontFamily,
@@ -486,11 +466,9 @@ const Guest: React.FC = () => {
                     onClick={() => handleSelect(gift)}
                   >
                     {isReserving
-                      ? "Reservando..."
+                      ? "Verificando..."
                       : gift.selected
                       ? "Indisponível"
-                      : isReservedByOther
-                      ? "Presente está sendo visualizado"
                       : "Escolher presente"}
                   </button>
                 </div>
@@ -499,7 +477,6 @@ const Guest: React.FC = () => {
           })}
       </div>
 
-      {/* Modais */}
       <GiftConfirmationModal
         isOpen={showConfirmationModal}
         onClose={handleCloseModals}

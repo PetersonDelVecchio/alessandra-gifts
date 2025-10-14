@@ -143,7 +143,7 @@ export default function GiftConfirmationModal({
       {/* Timer */}
       <div className="mb-6">
         <ReservationTimer
-          initialTime={30} // VOLTAR PARA 2 MINUTOS
+          initialTime={60}
           onExpired={handleTimerExpired}
           isActive={isOpen && !!gift}
         />
