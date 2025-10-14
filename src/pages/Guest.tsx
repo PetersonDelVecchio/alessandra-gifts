@@ -490,7 +490,7 @@ const Guest: React.FC = () => {
                       : gift.selected
                       ? "Indisponível"
                       : isReservedByOther
-                      ? "Alguem está vendo"
+                      ? "Presente está sendo visualizado"
                       : "Escolher presente"}
                   </button>
                 </div>
