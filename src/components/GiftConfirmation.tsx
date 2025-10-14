@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { Timestamp } from "firebase/firestore";
+import ReservationTimer from "./ReservationTimer";
 
 type Gift = {
   id: string;
@@ -12,6 +14,9 @@ type Gift = {
   active?: boolean;
   valor?: string;
   url?: string;
+  reservedBy?: string | null;
+  reservedAt?: Timestamp | Date | null; // Tipo correto
+  reservationExpiry?: Timestamp | Date | null; // Tipo correto
 };
 
 type GiftConfirmationModalProps = {
@@ -19,6 +24,7 @@ type GiftConfirmationModalProps = {
   onClose: () => void;
   gift: Gift | null;
   onConfirm: (method: "levar" | "pix") => void;
+  onReservationExpired: () => void;
 };
 
 export default function GiftConfirmationModal({
@@ -26,14 +32,26 @@ export default function GiftConfirmationModal({
   onClose,
   gift,
   onConfirm,
+  onReservationExpired,
 }: GiftConfirmationModalProps) {
   const { theme } = useTheme();
-  const [selectedMethod, setSelectedMethod] = useState<"levar" | "pix" | "">("");
+  const [selectedMethod, setSelectedMethod] = useState<"levar" | "pix" | "">(
+    ""
+  );
+
+  // Memoiza o callback para evitar re-renders do timer
+  const handleTimerExpired = useCallback(() => {
+    console.log("🚨 Timer expired - calling onReservationExpired");
+    onReservationExpired();
+  }, [onReservationExpired]);
 
   if (!isOpen || !gift) return null;
 
   const handleConfirm = () => {
-    if (selectedMethod && (selectedMethod === "levar" || selectedMethod === "pix")) {
+    if (
+      selectedMethod &&
+      (selectedMethod === "levar" || selectedMethod === "pix")
+    ) {
       onConfirm(selectedMethod);
     }
   };
@@ -94,7 +112,9 @@ export default function GiftConfirmationModal({
           </label>
           <select
             value={selectedMethod}
-            onChange={(e) => setSelectedMethod(e.target.value as "levar" | "pix" | "")}
+            onChange={(e) =>
+              setSelectedMethod(e.target.value as "levar" | "pix" | "")
+            }
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2"
             style={{
               borderColor: theme?.giftBorderColor || "#d1d5db",
@@ -105,7 +125,12 @@ export default function GiftConfirmationModal({
             <option value="pix">Pix</option>
           </select>
         </div>
-
+        {/* Timer com callback memoizado */}
+        <ReservationTimer
+          initialTime={120}
+          onExpired={handleTimerExpired}
+          isActive={isOpen && !!gift}
+        />
         {/* Botões */}
         <div className="flex gap-3">
           <button
@@ -122,8 +147,12 @@ export default function GiftConfirmationModal({
             disabled={!selectedMethod}
             className="flex-1 px-4 py-2 rounded-lg transition-all duration-300 hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: selectedMethod ? theme?.giftButtonColor || "#ec4899" : "#ccc",
-              color: selectedMethod ? theme?.giftTextButtonColor || "#ffffff" : "#666",
+              background: selectedMethod
+                ? theme?.giftButtonColor || "#ec4899"
+                : "#ccc",
+              color: selectedMethod
+                ? theme?.giftTextButtonColor || "#ffffff"
+                : "#666",
             }}
           >
             Confirmar
