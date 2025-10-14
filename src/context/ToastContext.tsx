@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { useTheme } from "../hooks/useTheme";
+
 type ToastContextType = {
   showToast: (msg: string) => void;
 };
@@ -28,19 +29,26 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
       {children}
       {toast.visible && (
         <div
-          className="fixed bottom-5 right-5 bg-black p-4 rounded-lg shadow-md z-50"
+          className="fixed bottom-5 right-5 p-4 rounded-lg shadow-xl z-50 border max-w-sm"
           style={{
-            background: theme?.giftTextButtonColor
-              ? `${theme.giftTextButtonColor}33` // CC = 80% opacity em hex
-              : "rgba(236, 72, 153, 0.4)", // fallback para pink-600 com 80% opacity
-            backdropFilter: "blur(2px)",
+            // Fundo com blur e transparência melhorada
+            background: "rgba(0, 0, 0, 0.85)", // Fundo mais escuro
+            backdropFilter: "blur(10px)", // Blur mais forte
+            borderColor: theme?.navBarColor || "rgba(255, 255, 255, 0.2)",
+            borderWidth: "1px",
+            // Texto sempre branco para contraste
+            color: "#ffffff",
           }}
         >
-          {" "}
-          <span>{toast.message}</span>
-          <button onClick={closeToast} className="font-bold text-lg ml-2">
-            ×
-          </button>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium pr-2">{toast.message}</span>
+            <button
+              onClick={closeToast}
+              className="text-white hover:text-gray-300 font-bold text-lg ml-2 transition-colors"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
     </ToastContext.Provider>
