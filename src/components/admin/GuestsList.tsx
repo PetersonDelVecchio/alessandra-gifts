@@ -1,4 +1,6 @@
 import { Timestamp } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebase/config";
 import * as XLSX from "xlsx";
 import type { Theme } from "../../pages/ThemePage";
 
@@ -10,7 +12,9 @@ type Guest = {
   giftId?: string | null;
   giftMethod?: string;
   confirmedAt?: Timestamp | null;
-  type?: string; // Adicionar esta propriedade
+  type?: string;
+  pixRealizado?: boolean; // Adicionar este campo
+  pixConfirmedAt?: Timestamp | null; // Adicionar este campo
 };
 
 type Gift = {
@@ -31,6 +35,24 @@ type GuestsListProps = {
 };
 
 export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
+  // Função para alternar status do Pix
+  const handlePixToggle = async (guestId: string, currentStatus: boolean) => {
+    try {
+      const guestRef = doc(db, "guests", guestId);
+      const newStatus = !currentStatus;
+      
+      await updateDoc(guestRef, {
+        pixRealizado: newStatus,
+        pixConfirmedAt: newStatus ? serverTimestamp() : null,
+      });
+
+      // A atualização será refletida automaticamente pelo listener em tempo real
+    } catch (error) {
+      console.error("Erro ao atualizar status do Pix:", error);
+      alert("Erro ao atualizar status do Pix. Tente novamente.");
+    }
+  };
+
   // Função para formatar telefone
   const formatPhone = (phone: string): string => {
     if (!phone) return "-";
@@ -83,6 +105,9 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
           ? guest.giftMethod.charAt(0).toUpperCase() +
             guest.giftMethod.slice(1).toLowerCase()
           : "-",
+        "Pix Realizado": guest.giftMethod === "pix" 
+          ? (guest.pixRealizado ? "Sim" : "Não")
+          : "N/A",
         Confirmado: guest.giftSelected ? "Sim" : "Não",
         "Data Confirmação": guest.confirmedAt?.toDate
           ? guest.confirmedAt.toDate().toLocaleDateString("pt-BR", {
@@ -118,6 +143,7 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
       { wch: 15 }, // Valor
       { wch: 50 }, // URL
       { wch: 10 }, // Método
+      { wch: 12 }, // Pix Realizado
       { wch: 12 }, // Confirmado
       { wch: 20 }, // Data
     ];
@@ -149,6 +175,7 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
       { wch: 15 }, // Valor
       { wch: 50 }, // URL
       { wch: 10 }, // Método
+      { wch: 12 }, // Pix Realizado
       { wch: 12 }, // Confirmado
       { wch: 20 }, // Data
     ];
@@ -224,6 +251,7 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
               <th className="px-4 py-2">WhatsApp</th>
               <th className="px-4 py-2">Presente</th>
               <th className="px-4 py-2">Método</th>
+              <th className="px-4 py-2">Pix Realizado</th> {/* Nova coluna */}
               <th className="px-4 py-2">Confirmado</th>
               <th className="px-4 py-2">Data Confirmação</th>
             </tr>
@@ -241,6 +269,10 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
                   giftUrl = typeof gift.url === "string" ? gift.url : "";
                 }
               }
+
+              // Determina se deve mostrar o checkbox do Pix
+              const showPixCheckbox = guest.giftSelected && guest.giftMethod === "pix";
+
               return (
                 <tr key={guest.id} className="text-center border-b">
                   <td className="px-4 py-2">{guest.name}</td>
@@ -294,6 +326,33 @@ export default function GuestsList({ guests, gifts, theme }: GuestsListProps) {
                         guest.giftMethod.slice(1).toLowerCase()
                       : "-"}
                   </td>
+                  
+                  {/* Nova coluna Pix Realizado */}
+                  <td className="px-4 py-2">
+                    {showPixCheckbox ? (
+                      <div className="flex items-center justify-center">
+                        <div className="relative inline-block w-11 h-5">
+                          <input
+                            id={`pix-switch-${guest.id}`}
+                            type="checkbox"
+                            checked={!!guest.pixRealizado}
+                            onChange={() => handlePixToggle(guest.id, !!guest.pixRealizado)}
+                            className="peer appearance-none w-11 h-5 bg-slate-400 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
+                          />
+                          <label
+                            htmlFor={`pix-switch-${guest.id}`}
+                            className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
+                          ></label>
+                        </div>
+                        {guest.pixRealizado && (
+                          <span className="ml-2 text-green-600 text-sm"></span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+
                   <td className="px-4 py-2">
                     {guest.giftSelected ? "✔️" : "❌"}
                   </td>
