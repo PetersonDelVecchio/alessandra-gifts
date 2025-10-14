@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -79,6 +79,11 @@ const Guest: React.FC = () => {
   const [showPixModal, setShowPixModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reservingGift, setReservingGift] = useState<string | null>(null);
+  
+  // Adicionar controle de navegação
+  const [isConfirming, setIsConfirming] = useState(false);
+  const hasNavigatedRef = useRef(false);
+  
   const navigate = useNavigate();
   const { theme, loading: themeLoading } = useTheme();
   const { showToast } = useToast();
@@ -126,8 +131,11 @@ const Guest: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Verificar se o usuário já confirmou presente
+  // Verificar se o usuário já confirmou presente - CORRIGIR ESTE useEffect
   useEffect(() => {
+    // Se já navegou ou está confirmando, não executar
+    if (hasNavigatedRef.current || isConfirming) return;
+
     const checkGuestStatus = async () => {
       const guestId = localStorage.getItem("guestId");
       if (!guestId) {
@@ -142,13 +150,14 @@ const Guest: React.FC = () => {
         if (guestSnap.exists()) {
           const guestData = guestSnap.data();
 
-          if (guestData.giftSelected && guestData.giftId) {
+          // Se já confirmou presente, redireciona para invite
+          if (guestData.giftSelected && guestData.giftId && !isConfirming) {
+            hasNavigatedRef.current = true;
             navigate("/invite");
             return;
           }
         }
       } catch (error) {
-        // Silencioso
         console.error("Erro ao verificar status do convidado:", error);
       }
 
@@ -156,7 +165,7 @@ const Guest: React.FC = () => {
     };
 
     checkGuestStatus();
-  }, [navigate]);
+  }, [navigate, isConfirming]); // Adicionar isConfirming como dependência
 
   // Listener em tempo real para presentes com limpeza periódica
   useEffect(() => {
@@ -299,6 +308,9 @@ const Guest: React.FC = () => {
       return;
     }
 
+    // Marcar que está confirmando
+    setIsConfirming(true);
+
     try {
       await runTransaction(db, async (transaction) => {
         const giftRef = doc(db, "gifts", selectedGift.id);
@@ -321,13 +333,13 @@ const Guest: React.FC = () => {
           throw new Error("RESERVATION_EXPIRED");
         }
 
-        // Confirma seleção definitiva
+        // Confirma seleção definitiva - REMOVER campos de reserva IMEDIATAMENTE
         transaction.update(giftRef, {
           selected: true,
           guestId: guestId,
-          reservedBy: null,
-          reservedAt: null,
-          reservationExpiry: null,
+          reservedBy: null, // Remove reserva
+          reservedAt: null, // Remove reserva
+          reservationExpiry: null, // Remove reserva
         });
 
         // Atualiza o convidado
@@ -340,15 +352,40 @@ const Guest: React.FC = () => {
         });
       });
 
-      showToast("Presente confirmado com sucesso!");
+      // ✅ PRIMEIRA COISA: Fechar modais IMEDIATAMENTE
       setShowConfirmationModal(false);
+      setShowPixModal(false);
+      
+      // ✅ MARCAR NAVEGAÇÃO
+      hasNavigatedRef.current = true;
+      
+      showToast("Presente confirmado com sucesso!");
 
       if (method === "pix") {
-        setShowPixModal(true);
-      } else {
+        // Para PIX: aguardar um pouco antes de abrir modal PIX
         setTimeout(() => {
+          setShowPixModal(true);
+        }, 100);
+      } else if (method === "levar") {
+        // Para LEVAR: navegação forçada e imediata
+        showToast("Redirecionando...");
+        
+        // ✅ NAVEGAÇÃO MÚLTIPLA - uma delas vai funcionar
+        setTimeout(() => {
+          console.log("🚀 Tentativa 1 - navigate");
           navigate("/invite");
-        }, 1500);
+        }, 100);
+        
+        setTimeout(() => {
+          console.log("🚀 Tentativa 2 - window.location");
+          window.location.href = "/invite";
+        }, 300);
+        
+        // Backup final
+        setTimeout(() => {
+          console.log("🚀 Tentativa 3 - replace");
+          window.location.replace("/invite");
+        }, 600);
       }
     } catch (error) {
       const errorMessage =
@@ -361,22 +398,33 @@ const Guest: React.FC = () => {
       } else {
         showToast("Erro ao confirmar presente. Tente novamente.");
       }
+      
+      // Reset do estado de confirmação em caso de erro
+      setIsConfirming(false);
+      hasNavigatedRef.current = false;
     }
   };
 
   const handleGoToInvite = () => {
     setShowPixModal(false);
+    hasNavigatedRef.current = true;
     navigate("/invite");
   };
 
   const handleCloseModals = () => {
-    if (selectedGift?.id) {
+    // Só libera reserva se NÃO estiver confirmando
+    if (selectedGift?.id && !isConfirming) {
       releaseReservation(selectedGift.id);
     }
 
     setShowConfirmationModal(false);
     setShowPixModal(false);
     setSelectedGift(null);
+    
+    // Reset do estado se cancelar
+    if (!hasNavigatedRef.current) {
+      setIsConfirming(false);
+    }
   };
 
   if (themeLoading || loading) return <Loading message="Carregando..." />;
