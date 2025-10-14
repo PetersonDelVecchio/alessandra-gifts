@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../context/ToastContext";
 import LogoutButton from "../components/LogoutButton";
+import Modal from "../components/Modal"; // Importar o Modal com blur
 
 type Guest = {
   id: string;
@@ -352,168 +353,218 @@ const Admin: React.FC = () => {
         </span>
       </div>
 
-      {/* Modal Criar Presente */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
-            <button
-              className="absolute top-2 right-3 text-pink-500 text-2xl font-bold"
-              onClick={() => setIsModalOpen(false)}
-              aria-label="Fechar"
-            >
-              ×
-            </button>
-            <CreateGift onGiftCreated={handleGiftCreated} />
+      {/* Modal Criar Presente - usando componente Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <h2 className="text-xl font-bold mb-4 text-center">Adicionar Presente</h2>
+        <CreateGift onGiftCreated={handleGiftCreated} />
+      </Modal>
+
+      {/* Modal Editar Presente - usando componente Modal */}
+      <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
+        <h2 className="text-xl font-bold mb-4 text-center">
+          Editar Presente
+        </h2>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Título
+            </label>
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={(e) =>
+                setEditForm({ ...editForm, title: e.target.value })
+              }
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              placeholder="Nome do presente"
+            />
           </div>
-        </div>
-      )}
 
-      {/* Modal Editar Presente */}
-      {editModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
-            <button
-              className="absolute top-2 right-3 text-pink-500 text-2xl font-bold"
-              onClick={() => setEditModalOpen(false)}
-              aria-label="Fechar"
-            >
-              ×
-            </button>
-            <h2 className="text-xl font-bold mb-4 text-center">
-              Editar Presente
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Título</label>
-                <input
-                  type="text"
-                  value={editForm.title}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, title: e.target.value })
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">URL</label>
-                <input
-                  type="url"
-                  value={editForm.url}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, url: e.target.value })
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Descrição
-                </label>
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, description: e.target.value })
-                  }
-                  className="w-full border rounded px-3 py-2"
-                  rows={3}
-                  maxLength={100}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Valor</label>
-                <input
-                  type="text"
-                  value={editForm.valor}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, valor: e.target.value })
-                  }
-                  className="w-full border rounded px-3 py-2"
-                  placeholder="199.90"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={handleEditGift}
-                className="flex-1 bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition"
-              >
-                Salvar
-              </button>
-              <button
-                onClick={() => setEditModalOpen(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
-              >
-                Cancelar
-              </button>
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              URL
+            </label>
+            <input
+              type="url"
+              value={editForm.url}
+              onChange={(e) =>
+                setEditForm({ ...editForm, url: e.target.value })
+              }
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              placeholder="https://exemplo.com/produto"
+            />
           </div>
-        </div>
-      )}
 
-      {/* Modal Deletar Presente */}
-      {deleteModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
-            <h2 className="text-xl font-bold mb-4 text-center text-red-600">
-              Confirmar Remoção
-            </h2>
-            <p className="text-center mb-6">
-              Certeza que deseja remover este presente?
-              <br />
-              <strong>Essa ação não poderá ser desfeita.</strong>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Descrição
+            </label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) =>
+                setEditForm({ ...editForm, description: e.target.value })
+              }
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
+              rows={3}
+              maxLength={100}
+              placeholder="Descrição breve do presente"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {editForm.description.length}/100 caracteres
             </p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleConfirmDelete}
-                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition"
-              >
-                Confirmar
-              </button>
-              <button
-                onClick={() => setDeleteModalOpen(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
-              >
-                Cancelar
-              </button>
-            </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal Desvincular Presente */}
-      {unlinkModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 relative max-w-lg w-full">
-            <h2 className="text-xl font-bold mb-4 text-center text-orange-600">
-              Desvincular Presente
-            </h2>
-            <p className="text-center mb-6">
-              Remover o presente desta confirmação?
-              <br />
-              <strong>A pessoa terá de selecionar novamente.</strong>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleConfirmUnlink}
-                className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition"
-              >
-                Confirmar
-              </button>
-              <button
-                onClick={() => setUnlinkModalOpen(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
-              >
-                Cancelar
-              </button>
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Valor (R$)
+            </label>
+            <input
+              type="text"
+              value={editForm.valor}
+              onChange={(e) => {
+                // Permitir apenas números e vírgula/ponto
+                const value = e.target.value.replace(/[^\d.,]/g, '');
+                setEditForm({ ...editForm, valor: value });
+              }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              placeholder="199,90"
+            />
           </div>
         </div>
-      )}
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={() => setEditModalOpen(false)}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleEditGift}
+            className="flex-1 px-4 py-2 rounded-lg text-white transition-colors"
+            style={{
+              background: theme?.navBarColor || "#ec4899",
+            }}
+          >
+            Salvar Alterações
+          </button>
+        </div>
+      </Modal>
+
+      {/* Modal Deletar Presente - usando componente Modal */}
+      <Modal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)}>
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg
+              className="h-6 w-6 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
+
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Remover Presente
+          </h3>
+
+          <p className="text-sm text-gray-500 mb-4">
+            Tem certeza que deseja remover este presente?
+            <br />
+            <strong className="text-red-600">Esta ação não pode ser desfeita.</strong>
+          </p>
+
+          {selectedGift && (
+            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+              <p className="text-sm font-medium text-gray-900">
+                {selectedGift.title}
+              </p>
+              <p className="text-xs text-gray-500">
+                R$ {selectedGift.valor}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setDeleteModalOpen(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Remover
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Desvincular Presente - usando componente Modal */}
+      <Modal isOpen={unlinkModalOpen} onClose={() => setUnlinkModalOpen(false)}>
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 mb-4">
+            <svg
+              className="h-6 w-6 text-orange-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
+            </svg>
+          </div>
+
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Desvincular Presente
+          </h3>
+
+          <p className="text-sm text-gray-500 mb-4">
+            Deseja desvincular este presente do convidado?
+            <br />
+            <strong className="text-orange-600">A pessoa terá que selecionar novamente.</strong>
+          </p>
+
+          {selectedGift && (
+            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+              <p className="text-sm font-medium text-gray-900">
+                {selectedGift.title}
+              </p>
+              <p className="text-xs text-gray-500">
+                Vinculado a: {selectedGift.guestId && guestMap[selectedGift.guestId]?.name}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setUnlinkModalOpen(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmUnlink}
+              className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              Desvincular
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Popup de sucesso */}
       {showPopup && (
